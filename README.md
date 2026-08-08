@@ -44,6 +44,8 @@ Flip `USE_MOCKS=0` once stages 1–4 produce checkpoints.
 
 ## Docs
 
+**新加入的组员从这里开始:** [`CONTRIBUTING.md`](CONTRIBUTING.md) —— 上手步骤、文件归属、冻结契约、交接与密钥纪律
+
 **读文档的顺序:**
 1. `docs/TECH_DESIGN.md` — 工作手册:架构、文件归属、冻结契约、每个模块的命令与验收
 2. `docs/TEAM_TASKS.md` — 逐人任务、七天节奏、报告章节归属
