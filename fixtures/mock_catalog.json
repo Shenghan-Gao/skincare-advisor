@@ -1,0 +1,486 @@
+{
+ "_note": "合成目录,仅用于在真实数据到位前跑通/测试整条链路。成分与 ingredient_rules.json 对齐。",
+ "products": [
+  {
+   "product_id": "P001",
+   "name": "Niacinamide 10% + Zinc 1%",
+   "brand": "The Ordinary",
+   "category": "serum",
+   "price_usd": 6.0,
+   "rating": 4.2,
+   "ingredients": [
+    "niacinamide",
+    "zinc pmca",
+    "glycerin"
+   ],
+   "_concerns": [
+    "acne",
+    "large_pores"
+   ]
+  },
+  {
+   "product_id": "P002",
+   "name": "Salicylic Acid 2% Solution",
+   "brand": "Paula's Choice",
+   "category": "exfoliant",
+   "price_usd": 34.0,
+   "rating": 4.5,
+   "ingredients": [
+    "salicylic acid",
+    "green tea extract"
+   ],
+   "_concerns": [
+    "acne",
+    "large_pores"
+   ]
+  },
+  {
+   "product_id": "P003",
+   "name": "Vitamin C Suspension 23%",
+   "brand": "The Ordinary",
+   "category": "serum",
+   "price_usd": 8.5,
+   "rating": 3.9,
+   "ingredients": [
+    "ascorbic acid",
+    "squalane"
+   ],
+   "_concerns": [
+    "dark_spots",
+    "wrinkles"
+   ]
+  },
+  {
+   "product_id": "P004",
+   "name": "Alpha Arbutin 2% + HA",
+   "brand": "The Ordinary",
+   "category": "serum",
+   "price_usd": 9.0,
+   "rating": 4.3,
+   "ingredients": [
+    "alpha arbutin",
+    "hyaluronic acid"
+   ],
+   "_concerns": [
+    "dark_spots"
+   ]
+  },
+  {
+   "product_id": "P005",
+   "name": "Cicaplast Baume B5",
+   "brand": "La Roche-Posay",
+   "category": "moisturizer",
+   "price_usd": 15.0,
+   "rating": 4.7,
+   "ingredients": [
+    "panthenol",
+    "madecassoside",
+    "shea butter"
+   ],
+   "_concerns": [
+    "redness",
+    "dryness"
+   ]
+  },
+  {
+   "product_id": "P006",
+   "name": "Centella Ampoule",
+   "brand": "Purito",
+   "category": "serum",
+   "price_usd": 18.0,
+   "rating": 4.4,
+   "ingredients": [
+    "centella asiatica",
+    "panthenol"
+   ],
+   "_concerns": [
+    "redness"
+   ]
+  },
+  {
+   "product_id": "P007",
+   "name": "Hyaluronic Acid 2% + B5",
+   "brand": "The Ordinary",
+   "category": "serum",
+   "price_usd": 8.0,
+   "rating": 4.1,
+   "ingredients": [
+    "hyaluronic acid",
+    "panthenol",
+    "glycerin"
+   ],
+   "_concerns": [
+    "dryness"
+   ]
+  },
+  {
+   "product_id": "P008",
+   "name": "Ceramide Moisturizing Cream",
+   "brand": "CeraVe",
+   "category": "moisturizer",
+   "price_usd": 17.0,
+   "rating": 4.6,
+   "ingredients": [
+    "ceramides",
+    "hyaluronic acid",
+    "glycerin"
+   ],
+   "_concerns": [
+    "dryness"
+   ]
+  },
+  {
+   "product_id": "P009",
+   "name": "Retinol 0.5% in Squalane",
+   "brand": "The Ordinary",
+   "category": "serum",
+   "price_usd": 12.0,
+   "rating": 4.0,
+   "ingredients": [
+    "retinol",
+    "squalane"
+   ],
+   "_concerns": [
+    "wrinkles",
+    "acne"
+   ]
+  },
+  {
+   "product_id": "P010",
+   "name": "Peptide Firming Serum",
+   "brand": "Drunk Elephant",
+   "category": "serum",
+   "price_usd": 68.0,
+   "rating": 4.2,
+   "ingredients": [
+    "peptides",
+    "hyaluronic acid"
+   ],
+   "_concerns": [
+    "wrinkles"
+   ]
+  },
+  {
+   "product_id": "P011",
+   "name": "Azelaic Acid Suspension 10%",
+   "brand": "The Ordinary",
+   "category": "treatment",
+   "price_usd": 12.0,
+   "rating": 4.3,
+   "ingredients": [
+    "azelaic acid"
+   ],
+   "_concerns": [
+    "acne",
+    "redness",
+    "dark_spots"
+   ]
+  },
+  {
+   "product_id": "P012",
+   "name": "Clay Mask Pore Refining",
+   "brand": "Innisfree",
+   "category": "mask",
+   "price_usd": 22.0,
+   "rating": 4.0,
+   "ingredients": [
+    "clay",
+    "niacinamide"
+   ],
+   "_concerns": [
+    "large_pores",
+    "acne"
+   ]
+  }
+ ],
+ "chunks": [
+  {
+   "evidence_id": "P001:desc:0",
+   "product_id": "P001",
+   "source": "description",
+   "text": "Niacinamide 10% + Zinc 1% by The Ordinary. A serum targeting acne, large pores."
+  },
+  {
+   "evidence_id": "P001:ing:0",
+   "product_id": "P001",
+   "source": "ingredient",
+   "text": "Key ingredients: niacinamide, zinc pmca, glycerin."
+  },
+  {
+   "evidence_id": "P001:rev:0",
+   "product_id": "P001",
+   "source": "review",
+   "text": "Cleared up my chin breakouts in about three weeks and my pores look smaller."
+  },
+  {
+   "evidence_id": "P001:rev:1",
+   "product_id": "P001",
+   "source": "review",
+   "text": "Lightweight, no fragrance, layers well under moisturizer."
+  },
+  {
+   "evidence_id": "P002:desc:0",
+   "product_id": "P002",
+   "source": "description",
+   "text": "Salicylic Acid 2% Solution by Paula's Choice. A exfoliant targeting acne, large pores."
+  },
+  {
+   "evidence_id": "P002:ing:0",
+   "product_id": "P002",
+   "source": "ingredient",
+   "text": "Key ingredients: salicylic acid, green tea extract."
+  },
+  {
+   "evidence_id": "P002:rev:0",
+   "product_id": "P002",
+   "source": "review",
+   "text": "The only BHA that stopped my blackheads without drying me out."
+  },
+  {
+   "evidence_id": "P002:rev:1",
+   "product_id": "P002",
+   "source": "review",
+   "text": "Use it three nights a week, skin is noticeably clearer."
+  },
+  {
+   "evidence_id": "P003:desc:0",
+   "product_id": "P003",
+   "source": "description",
+   "text": "Vitamin C Suspension 23% by The Ordinary. A serum targeting dark spots, wrinkles."
+  },
+  {
+   "evidence_id": "P003:ing:0",
+   "product_id": "P003",
+   "source": "ingredient",
+   "text": "Key ingredients: ascorbic acid, squalane."
+  },
+  {
+   "evidence_id": "P003:rev:0",
+   "product_id": "P003",
+   "source": "review",
+   "text": "Faded my post-acne marks after two months of steady use."
+  },
+  {
+   "evidence_id": "P003:rev:1",
+   "product_id": "P003",
+   "source": "review",
+   "text": "Texture is gritty but the brightening is real."
+  },
+  {
+   "evidence_id": "P004:desc:0",
+   "product_id": "P004",
+   "source": "description",
+   "text": "Alpha Arbutin 2% + HA by The Ordinary. A serum targeting dark spots."
+  },
+  {
+   "evidence_id": "P004:ing:0",
+   "product_id": "P004",
+   "source": "ingredient",
+   "text": "Key ingredients: alpha arbutin, hyaluronic acid."
+  },
+  {
+   "evidence_id": "P004:rev:0",
+   "product_id": "P004",
+   "source": "review",
+   "text": "Melasma patches are visibly lighter, no irritation at all."
+  },
+  {
+   "evidence_id": "P004:rev:1",
+   "product_id": "P004",
+   "source": "review",
+   "text": "Gentle enough to use morning and night."
+  },
+  {
+   "evidence_id": "P005:desc:0",
+   "product_id": "P005",
+   "source": "description",
+   "text": "Cicaplast Baume B5 by La Roche-Posay. A moisturizer targeting redness, dryness."
+  },
+  {
+   "evidence_id": "P005:ing:0",
+   "product_id": "P005",
+   "source": "ingredient",
+   "text": "Key ingredients: panthenol, madecassoside, shea butter."
+  },
+  {
+   "evidence_id": "P005:rev:0",
+   "product_id": "P005",
+   "source": "review",
+   "text": "Calms my rosacea flare-ups overnight."
+  },
+  {
+   "evidence_id": "P005:rev:1",
+   "product_id": "P005",
+   "source": "review",
+   "text": "Thick but sinks in; saved my skin barrier after retinol."
+  },
+  {
+   "evidence_id": "P006:desc:0",
+   "product_id": "P006",
+   "source": "description",
+   "text": "Centella Ampoule by Purito. A serum targeting redness."
+  },
+  {
+   "evidence_id": "P006:ing:0",
+   "product_id": "P006",
+   "source": "ingredient",
+   "text": "Key ingredients: centella asiatica, panthenol."
+  },
+  {
+   "evidence_id": "P006:rev:0",
+   "product_id": "P006",
+   "source": "review",
+   "text": "Redness on my cheeks went down a lot within a month."
+  },
+  {
+   "evidence_id": "P006:rev:1",
+   "product_id": "P006",
+   "source": "review",
+   "text": "Fragrance-free and very soothing on angry skin."
+  },
+  {
+   "evidence_id": "P007:desc:0",
+   "product_id": "P007",
+   "source": "description",
+   "text": "Hyaluronic Acid 2% + B5 by The Ordinary. A serum targeting dryness."
+  },
+  {
+   "evidence_id": "P007:ing:0",
+   "product_id": "P007",
+   "source": "ingredient",
+   "text": "Key ingredients: hyaluronic acid, panthenol, glycerin."
+  },
+  {
+   "evidence_id": "P007:rev:0",
+   "product_id": "P007",
+   "source": "review",
+   "text": "Skin feels plump instead of tight, especially in winter."
+  },
+  {
+   "evidence_id": "P007:rev:1",
+   "product_id": "P007",
+   "source": "review",
+   "text": "Apply on damp skin or it can feel sticky."
+  },
+  {
+   "evidence_id": "P008:desc:0",
+   "product_id": "P008",
+   "source": "description",
+   "text": "Ceramide Moisturizing Cream by CeraVe. A moisturizer targeting dryness."
+  },
+  {
+   "evidence_id": "P008:ing:0",
+   "product_id": "P008",
+   "source": "ingredient",
+   "text": "Key ingredients: ceramides, hyaluronic acid, glycerin."
+  },
+  {
+   "evidence_id": "P008:rev:0",
+   "product_id": "P008",
+   "source": "review",
+   "text": "Repaired my flaky dry patches in under a week."
+  },
+  {
+   "evidence_id": "P008:rev:1",
+   "product_id": "P008",
+   "source": "review",
+   "text": "No fragrance, great for a compromised barrier."
+  },
+  {
+   "evidence_id": "P009:desc:0",
+   "product_id": "P009",
+   "source": "description",
+   "text": "Retinol 0.5% in Squalane by The Ordinary. A serum targeting wrinkles, acne."
+  },
+  {
+   "evidence_id": "P009:ing:0",
+   "product_id": "P009",
+   "source": "ingredient",
+   "text": "Key ingredients: retinol, squalane."
+  },
+  {
+   "evidence_id": "P009:rev:0",
+   "product_id": "P009",
+   "source": "review",
+   "text": "Fine lines around my eyes softened after eight weeks."
+  },
+  {
+   "evidence_id": "P009:rev:1",
+   "product_id": "P009",
+   "source": "review",
+   "text": "Start twice a week, it can be drying at first."
+  },
+  {
+   "evidence_id": "P010:desc:0",
+   "product_id": "P010",
+   "source": "description",
+   "text": "Peptide Firming Serum by Drunk Elephant. A serum targeting wrinkles."
+  },
+  {
+   "evidence_id": "P010:ing:0",
+   "product_id": "P010",
+   "source": "ingredient",
+   "text": "Key ingredients: peptides, hyaluronic acid."
+  },
+  {
+   "evidence_id": "P010:rev:0",
+   "product_id": "P010",
+   "source": "review",
+   "text": "Skin looks firmer and more bouncy, no irritation."
+  },
+  {
+   "evidence_id": "P010:rev:1",
+   "product_id": "P010",
+   "source": "review",
+   "text": "Expensive but works well layered under moisturizer."
+  },
+  {
+   "evidence_id": "P011:desc:0",
+   "product_id": "P011",
+   "source": "description",
+   "text": "Azelaic Acid Suspension 10% by The Ordinary. A treatment targeting acne, redness, dark spots."
+  },
+  {
+   "evidence_id": "P011:ing:0",
+   "product_id": "P011",
+   "source": "ingredient",
+   "text": "Key ingredients: azelaic acid."
+  },
+  {
+   "evidence_id": "P011:rev:0",
+   "product_id": "P011",
+   "source": "review",
+   "text": "Helped both my breakouts and the redness left behind."
+  },
+  {
+   "evidence_id": "P011:rev:1",
+   "product_id": "P011",
+   "source": "review",
+   "text": "Slight tingle at first, then nothing."
+  },
+  {
+   "evidence_id": "P012:desc:0",
+   "product_id": "P012",
+   "source": "description",
+   "text": "Clay Mask Pore Refining by Innisfree. A mask targeting large pores, acne."
+  },
+  {
+   "evidence_id": "P012:ing:0",
+   "product_id": "P012",
+   "source": "ingredient",
+   "text": "Key ingredients: clay, niacinamide."
+  },
+  {
+   "evidence_id": "P012:rev:0",
+   "product_id": "P012",
+   "source": "review",
+   "text": "Pores look tighter the morning after using it."
+  },
+  {
+   "evidence_id": "P012:rev:1",
+   "product_id": "P012",
+   "source": "review",
+   "text": "Twice a week max or it gets drying."
+  }
+ ]
+}

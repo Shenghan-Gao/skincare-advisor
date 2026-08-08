@@ -1,0 +1,11 @@
+# 自建 CNN 基线 -- 报告里和 transfer 做对比,不要省略这组
+kind: simple
+epochs: 15
+lr: 0.001
+batch_size: 32
+
+train_csv: data/processed/vision_train.csv
+val_csv:   data/processed/vision_val.csv
+out:       models/vision
+
+run_name: simple_cnn_baseline

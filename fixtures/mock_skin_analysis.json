@@ -1,0 +1,13 @@
+{
+  "skin_type": "combination",
+  "skin_type_confidence": 0.82,
+  "concerns": [
+    {"concern": "acne", "score": 0.78},
+    {"concern": "dark_spots", "score": 0.61},
+    {"concern": "redness", "score": 0.34},
+    {"concern": "large_pores", "score": 0.55},
+    {"concern": "wrinkles", "score": 0.12},
+    {"concern": "dryness", "score": 0.21}
+  ],
+  "model_version": "mock"
+}

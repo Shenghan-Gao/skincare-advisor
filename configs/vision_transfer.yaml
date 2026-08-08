@@ -1,0 +1,13 @@
+# 队友的唯一旋钮。改这里,不要改 src/skincare/vision/*.py
+kind: transfer          # transfer | simple
+backbone: resnet18      # resnet18 | resnet50 | efficientnet_b0
+epochs: 8
+lr: 0.0003
+batch_size: 32
+freeze_backbone: false
+
+train_csv: data/processed/vision_train.csv
+val_csv:   data/processed/vision_val.csv
+out:       models/vision
+
+run_name: transfer_resnet18_lr3e4    # 每次实验换个名字,别覆盖别人的结果

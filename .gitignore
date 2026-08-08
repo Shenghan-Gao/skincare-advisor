@@ -1,0 +1,32 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.DS_Store
+.ipynb_checkpoints/
+
+# data & model artifacts (never commit)
+data/raw/*
+data/processed/*
+models/*
+!**/.gitkeep
+*.faiss
+*.bin
+*.safetensors
+wandb/
+outputs/
+
+# 教师蒸馏缓存(可能含 API 产出,且体积大)
+*.cache.jsonl
+reports/*.json
+
+# --- 推 GitHub 前补充 ---
+# 打包给 Colab 的临时文件
+skincare_for_colab.zip
+# 任何压缩包都不该进仓库
+*.zip
+# 临时清理目录
+_to_delete/
+# 蒸馏摘要,每次跑都会变
+distill_summary.json

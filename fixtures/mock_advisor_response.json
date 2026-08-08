@@ -1,0 +1,29 @@
+{
+  "analysis": null,
+  "recommendations": [
+    {
+      "product_id": "P1001",
+      "name": "Niacinamide 10% + Zinc 1%",
+      "brand": "The Ordinary",
+      "price_usd": 6.0,
+      "reason": "Targets your acne and visible pores; reviewers with combination skin report reduced oiliness within a month [P1001:rev:3].",
+      "key_ingredients": ["niacinamide", "zinc"],
+      "cited_evidence": ["P1001:rev:3", "P1001:desc:0"],
+      "matched_concerns": ["acne", "large_pores"]
+    },
+    {
+      "product_id": "P2044",
+      "name": "Vitamin C Suspension 23%",
+      "brand": "The Ordinary",
+      "price_usd": 8.5,
+      "reason": "Addresses the dark spots detected in your analysis; evidence notes visible brightening after 8 weeks [P2044:rev:1].",
+      "key_ingredients": ["vitamin c"],
+      "cited_evidence": ["P2044:rev:1"],
+      "matched_concerns": ["dark_spots"]
+    }
+  ],
+  "routine_note": "Use niacinamide in the morning and vitamin C on alternate days; always finish with SPF.",
+  "disclaimer": "This tool offers cosmetic product suggestions only. It is not medical advice and cannot diagnose any skin condition. For persistent, painful, or worsening skin problems, please consult a licensed dermatologist.",
+  "safety_flags": [],
+  "generator": "mock"
+}

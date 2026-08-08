@@ -1,0 +1,86 @@
+{
+ "_owner": "TEAMMATE A -- 扩充本文件。注意:安全过滤用的是子串匹配,条目必须写成产品成分表里真实出现的形式(写 'salicylic acid',不要写 'salicylic acid high dose' —— 那样永远匹配不到)。每条规则请在 sources.md 注明出处。",
+ "concern_to_ingredients": {
+  "acne": [
+   "salicylic acid",
+   "benzoyl peroxide",
+   "niacinamide",
+   "azelaic acid",
+   "adapalene",
+   "tea tree"
+  ],
+  "dark_spots": [
+   "niacinamide",
+   "vitamin c",
+   "azelaic acid",
+   "alpha arbutin",
+   "tranexamic acid",
+   "retinol"
+  ],
+  "redness": [
+   "centella asiatica",
+   "niacinamide",
+   "azelaic acid",
+   "allantoin",
+   "panthenol",
+   "madecassoside"
+  ],
+  "large_pores": [
+   "niacinamide",
+   "salicylic acid",
+   "retinol",
+   "clay"
+  ],
+  "wrinkles": [
+   "retinol",
+   "peptides",
+   "vitamin c",
+   "bakuchiol",
+   "hyaluronic acid"
+  ],
+  "dryness": [
+   "hyaluronic acid",
+   "ceramides",
+   "squalane",
+   "glycerin",
+   "shea butter",
+   "urea"
+  ]
+ },
+ "skin_type_to_avoid": {
+  "oily": [
+   "heavy oils",
+   "petrolatum",
+   "coconut oil"
+  ],
+  "dry": [
+   "denatured alcohol",
+   "sulfates",
+   "high concentration aha"
+  ],
+  "combination": [],
+  "normal": []
+ },
+ "pregnancy_unsafe": [
+  "retinol",
+  "retinoid",
+  "tretinoin",
+  "adapalene",
+  "retinal",
+  "retinyl",
+  "hydroquinone",
+  "salicylic acid"
+ ],
+ "common_irritants": [
+  "fragrance",
+  "parfum",
+  "denatured alcohol",
+  "essential oil",
+  "menthol"
+ ],
+ "comedogenic": [
+  "coconut oil",
+  "isopropyl myristate",
+  "wheat germ oil"
+ ]
+}
