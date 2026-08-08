@@ -1,12 +1,23 @@
+# 用法(在仓库根目录):
+#   make docker-up
+# 或手动:
+#   docker compose --project-directory . -f docker/docker-compose.yml up --build
+#
+# 不需要 .env 也能起来:下面所有变量都带默认值。
+# 有 .env 时会自动读取(所以本地开发可以在根目录放 .env 覆盖)。
 services:
   api:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     ports: ["8000:8000"]
-    env_file: [../.env]
     environment:
       USE_MOCKS: "${USE_MOCKS:-1}"
+      USE_MOCK_RETRIEVAL: "${USE_MOCK_RETRIEVAL:-0}"
+      USE_STUB_GENERATOR: "${USE_STUB_GENERATOR:-0}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      LLM_BASE_MODEL: "${LLM_BASE_MODEL:-Qwen/Qwen2.5-1.5B-Instruct}"
+      LLM_ADAPTER: "${LLM_ADAPTER:-}"
     volumes:
       - ../models:/app/models:ro
       - ../data/processed:/app/data/processed:ro

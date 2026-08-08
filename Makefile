@@ -22,4 +22,7 @@ docker-build:
 	docker build -f docker/Dockerfile -t skincare-advisor .
 
 docker-up:
-	docker compose -f docker/docker-compose.yml up --build
+	docker compose --project-directory . -f docker/docker-compose.yml up --build
+
+bench:              ## 本地基准测试(需先 make api)
+	uv run python scripts/benchmark.py --url http://localhost:8000 --label local
