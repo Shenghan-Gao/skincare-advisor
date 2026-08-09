@@ -30,3 +30,8 @@ skincare_for_colab.zip
 _to_delete/
 # 蒸馏摘要,每次跑都会变
 distill_summary.json
+
+# Python 构建产物(pip install -e 生成,不该进仓库)
+*.egg-info/
+build/
+dist/
