@@ -26,8 +26,9 @@ from pathlib import Path
 
 REPO = "https://github.com/Shenghan-Gao/skincare-advisor.git"
 WORK = Path("/content/skincare")
-DRIVE = Path("/content/drive/MyDrive")
-DATA_DST, MODEL_DST = DRIVE / "skincare_data", DRIVE / "skincare_models"
+DRIVE = Path("/content/drive")
+MYDRIVE = DRIVE / "MyDrive"
+DATA_DST, MODEL_DST = MYDRIVE / "skincare_data", MYDRIVE / "skincare_models"
 SRC, MODEL_SRC = WORK / "data" / "processed", WORK / "models" / "llm"
 
 BASE = os.environ.get("BASE_MODEL", "Qwen/Qwen2.5-1.5B-Instruct")
@@ -93,10 +94,15 @@ def restore():
 # ------------------------------------------------------------------ stages ---
 def stage_setup():
     status("setup", "start")
-    from google.colab import drive
-    drive.mount("/content/drive")
+    # Drive is mounted at session level by `colab drivemount` before this script is
+    # launched. Calling drive.mount() again from a detached background process hangs,
+    # because it expects an interactive kernel to complete the auth handshake.
+    if not (DRIVE / "MyDrive").exists():
+        from google.colab import drive
+        drive.mount("/content/drive")
     for d in (DATA_DST, MODEL_DST):
         d.mkdir(parents=True, exist_ok=True)
+    log("Drive ready")
 
     if not (WORK / "pyproject.toml").exists():
         sh(f"git clone -q {REPO} {WORK}", check=True)
@@ -198,9 +204,14 @@ def main():
         try:
             fn()
         except SystemExit as e:
-            status(name, "failed", error=str(e)); raise
+            status(name, "failed", error=str(e))
+            Path("/content/PIPELINE_FAILED").write_text(f"{name}: {e}")
+            raise
         except Exception as e:
-            status(name, "failed", error=f"{type(e).__name__}: {e}"); raise
+            status(name, "failed", error=f"{type(e).__name__}: {e}")
+            Path("/content/PIPELINE_FAILED").write_text(f"{name}: {e}")
+            raise
+    Path("/content/PIPELINE_DONE").write_text("ok")
     log("PIPELINE COMPLETE")
     status("pipeline", "complete")
 

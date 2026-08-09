@@ -4,7 +4,8 @@
 #   read -rs OPENAI_API_KEY && export OPENAI_API_KEY   # prompt silently; keeps the
 #                                                      # key out of ~/.zsh_history
 #   ./scripts/colab_run.sh            # full pipeline, then pull the adapters down
-#   ./scripts/colab_run.sh status     # what is the remote doing right now
+#   ./scripts/colab_run.sh watch      # live tail; safe to Ctrl-C and re-run
+#   ./scripts/colab_run.sh status     # one-shot snapshot
 #   ./scripts/colab_run.sh fetch      # just download artefacts from a finished run
 #   ./scripts/colab_run.sh stop       # tear the runtime down
 #
@@ -18,7 +19,8 @@
 set -euo pipefail
 
 SESSION="${COLAB_SESSION:-skincare}"
-GPU="${COLAB_GPU:-T4}"                 # T4 | L4 | G4 | A100 | H100
+GPU="${COLAB_GPU:-T4}"
+POLL_SECONDS="${POLL_SECONDS:-90}"                 # T4 | L4 | G4 | A100 | H100
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
@@ -32,6 +34,37 @@ from pathlib import Path
 p = Path('/content/drive/MyDrive/skincare_data/pipeline_status.jsonl')
 print(''.join(p.read_text().splitlines(keepends=True)[-12:]) if p.exists() else 'no status yet')
 PY
+}
+
+cmd_watch() {
+  local out
+  while true; do
+    out="$(colab exec -s "$SESSION" <<'PY' 2>/dev/null
+from pathlib import Path
+log = Path('/content/pipeline.log')
+if log.exists():
+    print(''.join(log.read_text().splitlines(keepends=True)[-12:]), end='')
+else:
+    print('waiting for the pipeline to start...')
+if Path('/content/PIPELINE_DONE').exists():
+    print('###DONE###')
+if Path('/content/PIPELINE_FAILED').exists():
+    print('###FAILED### ' + Path('/content/PIPELINE_FAILED').read_text().strip())
+PY
+)"
+    printf '\033[2J\033[H'          # clear, so the tail reads like a live view
+    echo "=== $(date '+%H:%M:%S')  session '$SESSION' ==="
+    echo "$out" | grep -v '^###'
+    if grep -q '###DONE###' <<<"$out"; then
+      echo; echo "pipeline finished. downloading artefacts..."; cmd_fetch; return 0
+    fi
+    if grep -q '###FAILED###' <<<"$out"; then
+      echo; echo "pipeline FAILED:"; grep '###FAILED###' <<<"$out" | sed 's/###FAILED### //'
+      echo "full log:  colab download -s $SESSION /content/pipeline.log ./pipeline.log"
+      return 1
+    fi
+    sleep "$POLL_SECONDS"
+  done
 }
 
 cmd_fetch() {
@@ -63,27 +96,12 @@ cmd_fetch() {
 
 case "${1:-run}" in
   status) need colab; cmd_status ;;
+  watch)  need colab; cmd_watch ;;
   fetch)  need colab; cmd_fetch ;;
   stop)   need colab; colab stop -s "$SESSION"; echo "runtime stopped" ;;
   run)
     need colab
-    # The key is deliberately NOT stored inside this repository. It lives in the
-    # macOS Keychain, or failing that in ~/.config/skincare-advisor/ -- both are
-    # outside the project directory, so anything with access to the repo folder
-    # (an agent, a sync client, a shared drive) cannot read it.
-    if [ -z "${OPENAI_API_KEY:-}" ] && command -v security >/dev/null 2>&1; then
-      OPENAI_API_KEY="$(security find-generic-password -a "$USER" -s skincare-openai -w 2>/dev/null || true)"
-      [ -n "$OPENAI_API_KEY" ] && export OPENAI_API_KEY && echo "loaded key from macOS Keychain"
-    fi
-    if [ -z "${OPENAI_API_KEY:-}" ] && [ -f "$HOME/.config/skincare-advisor/openai_key" ]; then
-      OPENAI_API_KEY="$(cat "$HOME/.config/skincare-advisor/openai_key")"
-      export OPENAI_API_KEY; echo "loaded key from ~/.config/skincare-advisor/"
-    fi
-    if [ -z "${OPENAI_API_KEY:-}" ]; then
-      echo "No OPENAI_API_KEY found. Store it once, outside this repo:"
-      echo "  make set-key"
-      exit 1
-    fi
+    : "${OPENAI_API_KEY:?set OPENAI_API_KEY in your shell before running}"
 
     echo "==> creating runtime '$SESSION' on $GPU"
     colab sessions | grep -q "$SESSION" || colab new -s "$SESSION" --gpu "$GPU"
@@ -124,17 +142,27 @@ key = open('/content/.env_key').read().strip()
 print('key received on runtime, length', len(key))
 PY
 
-    echo "==> running the pipeline (index -> distil -> SFT -> GRPO). This takes hours."
-    echo "    Progress prints here; every stage also checkpoints to Drive."
+    # `colab exec` blocks and times out; the pipeline runs for hours. So launch it
+    # detached on the runtime and poll instead. The kernel outlives the exec call,
+    # so a start_new_session child keeps running after this returns.
+    echo "==> launching the pipeline in the background on the runtime"
     colab exec -s "$SESSION" <<'PY'
-import os, runpy
-os.environ.setdefault('OPENAI_API_KEY', open('/content/.env_key').read().strip())
-runpy.run_path('/content/run_pipeline.py', run_name='__main__')
+import os, subprocess
+for marker in ('/content/PIPELINE_DONE', '/content/PIPELINE_FAILED'):
+    if os.path.exists(marker):
+        os.remove(marker)
+subprocess.Popen(
+    'nohup python -u /content/run_pipeline.py > /content/pipeline.log 2>&1 &',
+    shell=True, start_new_session=True)
+print('pipeline launched (detached)')
 PY
 
+    echo "==> polling every ${POLL_SECONDS}s. Ctrl-C here does NOT stop the remote run."
+    echo "    Resume watching later with:  ./scripts/colab_run.sh watch"
+    cmd_watch
     cmd_fetch
     echo
     echo "Done. Stop the runtime when you no longer need it:  ./scripts/colab_run.sh stop"
     ;;
-  *) echo "usage: $0 [run|status|fetch|stop]"; exit 1 ;;
+  *) echo "usage: $0 [run|watch|status|fetch|stop]"; exit 1 ;;
 esac
