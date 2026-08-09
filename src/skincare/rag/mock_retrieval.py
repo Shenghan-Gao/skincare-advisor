@@ -1,10 +1,13 @@
-"""Retriever 的替身 —— 用合成目录顶替真实 FAISS 索引。
+"""A stand-in for Retriever -- a synthetic catalog in place of the real FAISS index.
 
-为什么需要它:Anna 的 SFT/GRPO 链路要等组员 A 交出 products/chunks.parquet 才能跑。
-有了它,Anna 第一天就能把「造数据 → 蒸馏 → 过滤 → 训练」整条链路跑通测通,
-等真实数据到位后换掉一行即可。**这是把并行原则用在 Anna 自己身上。**
+Why it exists: Anna's SFT/GRPO pipeline would otherwise have to wait for teammate A to
+deliver products/chunks.parquet. With this stand-in, Anna can run and test the whole
+"build data -> distil -> filter -> train" pipeline on day one, and swap in the real data
+later by changing a single line. **This applies the parallel-work principle to Anna's own
+workstream.**
 
-接口与 rag.retrieve.Retriever 完全一致(鸭子类型),可直接互换。
+The interface matches rag.retrieve.Retriever exactly (duck typing), so the two are
+interchangeable.
 """
 import json
 import random
@@ -26,7 +29,8 @@ class MockRetriever:
                top_k: int = 3, n_chunks: int = 12) -> RetrievalResult:
         wanted = set(analysis.top_concerns() if analysis else [])
 
-        # 按关注点重合度打分,保证检索结果与画像相关(不是随机的,奖励才有信号)
+        # Score by overlap with the user's concerns so that retrieval stays relevant to the
+        # profile -- if the results were random, the rewards would carry no signal.
         scored = []
         for p in self._products:
             overlap = len(wanted & set(p["_concerns"]))
@@ -34,7 +38,8 @@ class MockRetriever:
                 continue
             scored.append((overlap, overlap + self.rng.random() * 0.1, p))
         scored.sort(key=lambda x: -x[1])
-        # 只保留真正有关注点重合的;全都不相关时才退回 top_k(否则奖励信号会被稀释)
+        # Keep only products that actually overlap a concern; fall back to plain top_k only
+        # when nothing is relevant (otherwise the reward signal gets diluted).
         chosen = [p for ov, _, p in scored[:top_k] if ov > 0] or [p for _, _, p in scored[:top_k]]
         ids = {p["product_id"] for p in chosen}
 

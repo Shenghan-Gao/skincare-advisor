@@ -1,5 +1,5 @@
 {
- "_note": "合成目录,仅用于在真实数据到位前跑通/测试整条链路。成分与 ingredient_rules.json 对齐。",
+ "_note": "Synthetic catalog, used only to exercise and test the entire pipeline before the real data is available. Its ingredients are aligned with ingredient_rules.json.",
  "products": [
   {
    "product_id": "P001",

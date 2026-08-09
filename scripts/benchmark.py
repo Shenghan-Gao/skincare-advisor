@@ -1,11 +1,11 @@
-"""L4 基准测试 —— 部署后测延迟/吞吐/成本,本地 vs 云端对比。
+"""L4 benchmark -- measure latency / throughput / cost after deployment, local vs cloud.
 
-先起服务,再跑:
-    python scripts/benchmark.py --url http://localhost:8000  --label local
-    python scripts/benchmark.py --url http://<云端IP>:8000    --label cloud --hourly-cost 0.526
+Start the service first, then run:
+    python scripts/benchmark.py --url http://localhost:8000   --label local
+    python scripts/benchmark.py --url http://<cloud-ip>:8000  --label cloud --hourly-cost 0.526
     python scripts/benchmark.py --compare reports/bench_local.json reports/bench_cloud.json
 
-产出 reports/bench_<label>.json 与对比用的 markdown 表格(直接贴进报告)。
+Produces reports/bench_<label>.json plus a markdown comparison table to paste into the report.
 """
 import argparse
 import json
@@ -46,22 +46,24 @@ def pctl(xs: list[float], p: float) -> float:
 
 
 def run(url: str, n: int, conc: int, warmup: int, timeout: int) -> dict:
-    print(f"目标 {url}  请求 {n}  并发 {conc}")
+    print(f"target {url}  requests {n}  concurrency {conc}")
 
-    # 冷启动:服务起来后的第一个请求,单独记录(云端常有明显冷启动)
+    # Cold start: the very first request after the service comes up, recorded on its own
+    # because cloud instances routinely show a large cold-start penalty that would otherwise
+    # skew the latency percentiles.
     cold_ms, cold_ok = _one(url, timeout)
-    print(f"  冷启动首请求: {cold_ms:.0f} ms  {'OK' if cold_ok else '失败'}")
+    print(f"  cold-start request: {cold_ms:.0f} ms  {'OK' if cold_ok else 'FAILED'}")
 
     for _ in range(warmup):
         _one(url, timeout)
-    print(f"  预热 {warmup} 次完成")
+    print(f"  warmup done ({warmup} requests)")
 
-    # --- 串行:测纯延迟,不受排队影响 ---
+    # --- Sequential: pure latency, unaffected by queueing ---
     seq = [_one(url, timeout) for _ in range(n)]
     seq_ms = [m for m, ok in seq if ok]
     seq_fail = sum(1 for _, ok in seq if not ok)
 
-    # --- 并发:测吞吐 ---
+    # --- Concurrent: throughput ---
     t0 = time.perf_counter()
     with ThreadPoolExecutor(max_workers=conc) as ex:
         par = list(ex.map(lambda _: _one(url, timeout), range(n)))
@@ -88,7 +90,8 @@ def run(url: str, n: int, conc: int, warmup: int, timeout: int) -> dict:
 
 
 def add_cost(res: dict, hourly: float | None) -> dict:
-    """按实例小时价折算每千次请求成本 —— 报告里要的是这个数,不是原始时长。"""
+    """Turn the instance hourly price into a cost per 1k requests -- that is the figure the
+    report needs, not the raw timings."""
     if hourly and res["throughput_rps"] > 0:
         per_req = hourly / 3600 / res["throughput_rps"]
         res["cost"] = {"instance_usd_per_hour": hourly,
@@ -99,17 +102,17 @@ def add_cost(res: dict, hourly: float | None) -> dict:
 def table(runs: dict[str, dict]) -> str:
     keys = list(runs)
     rows = [
-        ("冷启动 (ms)", lambda r: f"{r['cold_start_ms']:.0f}"),
-        ("延迟 p50 (ms)", lambda r: f"{r['latency_ms']['p50']:.0f}"),
-        ("延迟 p95 (ms)", lambda r: f"{r['latency_ms']['p95']:.0f}"),
-        ("延迟 p99 (ms)", lambda r: f"{r['latency_ms']['p99']:.0f}"),
-        ("吞吐 (req/s)", lambda r: f"{r['throughput_rps']:.2f}"),
-        ("并发下 p95 (ms)", lambda r: f"{r['concurrent_p95_ms']:.0f}"),
-        ("失败数", lambda r: str(r['failures']['sequential'] + r['failures']['concurrent'])),
-        ("每千次成本 (USD)", lambda r: (f"{r['cost']['usd_per_1k_requests']:.4f}"
-                                        if r.get("cost") else "—")),
+        ("cold start (ms)", lambda r: f"{r['cold_start_ms']:.0f}"),
+        ("latency p50 (ms)", lambda r: f"{r['latency_ms']['p50']:.0f}"),
+        ("latency p95 (ms)", lambda r: f"{r['latency_ms']['p95']:.0f}"),
+        ("latency p99 (ms)", lambda r: f"{r['latency_ms']['p99']:.0f}"),
+        ("throughput (req/s)", lambda r: f"{r['throughput_rps']:.2f}"),
+        ("p95 under concurrency (ms)", lambda r: f"{r['concurrent_p95_ms']:.0f}"),
+        ("failures", lambda r: str(r['failures']['sequential'] + r['failures']['concurrent'])),
+        ("cost per 1k requests (USD)", lambda r: (f"{r['cost']['usd_per_1k_requests']:.4f}"
+                                                  if r.get("cost") else "—")),
     ]
-    out = ["| 指标 | " + " | ".join(keys) + " |", "|---|" + "---|" * len(keys)]
+    out = ["| metric | " + " | ".join(keys) + " |", "|---|" + "---|" * len(keys)]
     for name, fn in rows:
         out.append(f"| {name} | " + " | ".join(fn(runs[k]) for k in keys) + " |")
     return "\n".join(out)
@@ -124,8 +127,10 @@ def main():
     ap.add_argument("--warmup", type=int, default=3)
     ap.add_argument("--timeout", type=int, default=120)
     ap.add_argument("--hourly-cost", type=float, default=None,
-                    help="该实例每小时价格(USD),用于折算每千次请求成本")
-    ap.add_argument("--compare", nargs="+", help="传入多个 bench_*.json 只做对比表")
+                    help="hourly price of this instance in USD, used to derive cost per 1k "
+                         "requests")
+    ap.add_argument("--compare", nargs="+",
+                    help="pass several bench_*.json files to render only the comparison table")
     args = ap.parse_args()
 
     Path("reports").mkdir(exist_ok=True)
@@ -136,7 +141,7 @@ def main():
         md = table(runs)
         print("\n" + md)
         Path("reports/bench_comparison.md").write_text(md + "\n")
-        print("\n已保存 reports/bench_comparison.md(可直接贴进报告)")
+        print("\nsaved reports/bench_comparison.md (ready to paste into the report)")
         return
 
     res = add_cost(run(args.url, args.n, args.concurrency, args.warmup, args.timeout),
@@ -144,14 +149,14 @@ def main():
     out = Path(f"reports/bench_{args.label}.json")
     out.write_text(json.dumps(res, ensure_ascii=False, indent=1))
 
-    print(f"\n  延迟 p50 {res['latency_ms']['p50']:.0f} ms / "
+    print(f"\n  latency p50 {res['latency_ms']['p50']:.0f} ms / "
           f"p95 {res['latency_ms']['p95']:.0f} ms / p99 {res['latency_ms']['p99']:.0f} ms")
-    print(f"  吞吐 {res['throughput_rps']:.2f} req/s(并发 {args.concurrency})")
+    print(f"  throughput {res['throughput_rps']:.2f} req/s (concurrency {args.concurrency})")
     if res.get("cost"):
-        print(f"  每千次请求 ${res['cost']['usd_per_1k_requests']:.4f}")
+        print(f"  ${res['cost']['usd_per_1k_requests']:.4f} per 1k requests")
     if sum(res["failures"].values()):
-        print(f"  ⚠️ 有 {sum(res['failures'].values())} 次失败")
-    print(f"\n已保存 {out}")
+        print(f"  ⚠️ {sum(res['failures'].values())} request(s) failed")
+    print(f"\nsaved {out}")
 
 
 if __name__ == "__main__":

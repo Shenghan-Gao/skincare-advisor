@@ -1,19 +1,22 @@
-"""构造 SFT / RL 数据集 —— 支柱二的入口(Anna 独占)。
+"""Build the SFT / RL datasets -- the entry point for pillar two (owned by Anna).
 
-    # 第一天就能跑:用合成目录,不需要 A 的数据、不需要 API key
+    # Runnable on day one: synthetic catalog, needs neither A's data nor an API key
     python -m skincare.llm.data_build --n 50 --mock-retrieval --dry-teacher
 
-    # 真正造 SFT 数据(要 OPENAI_API_KEY)
+    # Build real SFT data (requires OPENAI_API_KEY)
     python -m skincare.llm.data_build --n 800 --mode sft
 
-    # 造 RL 数据(不需要目标答案,也就不花钱)
+    # Build RL data (no target answers needed, so it costs nothing)
     python -m skincare.llm.data_build --n 600 --mode rl
 
-设计要点:
-1. **训练与服务共用同一个 prompt 模板**(prompts.py)—— 漂移会导致静默退化。
-2. **教师输出必须过滤**:低于阈值的直接丢。不过滤等于让模型学噪声,
-   这是 SFT 有没有效果的分水岭。
-3. **断点续跑**:每条结果即时写入 cache,中途挂了重跑不会重复烧钱。
+Design notes:
+1. **Training and serving share one prompt template** (prompts.py) -- drift between the two
+   causes silent degradation.
+2. **Teacher outputs must be filtered**: anything below the threshold is discarded. Skipping
+   the filter means training the model on noise, and this is what decides whether SFT works
+   at all.
+3. **Resumable**: every result is written to the cache immediately, so a crash mid-run can be
+   restarted without paying for the same calls twice.
 """
 import argparse
 import hashlib
@@ -33,7 +36,7 @@ CONCERNS = ["acne", "dark_spots", "redness", "large_pores", "wrinkles", "dryness
 PREFS = ["fragrance-free", "vegan", "gentle", "lightweight", "non-comedogenic"]
 
 
-# ----------------------------------------------------------------- 采样 ---
+# -------------------------------------------------------------- sampling ---
 def sample_profile() -> tuple[dict, dict]:
     concerns = random.sample(CONCERNS, k=random.randint(1, 3))
     skin_type = random.choice(SKIN_TYPES)
@@ -64,7 +67,7 @@ def get_retriever(mock: bool):
 
 
 def build_rows(n: int, mock: bool, top_k: int = 3) -> list[dict]:
-    """一行 = 一个训练样本的 prompt + 奖励上下文(GRPO 只需要这些)。"""
+    """One row = one training sample's prompt plus reward context (all GRPO needs)."""
     from app.schemas import SkinAnalysis, UserProfile
 
     retriever = get_retriever(mock)
@@ -78,7 +81,7 @@ def build_rows(n: int, mock: bool, top_k: int = 3) -> list[dict]:
         active = [c["concern"] for c in analysis["concerns"] if c["score"] >= 0.5]
         rows.append({
             "prompt": build_user_prompt(profile, analysis, ev),
-            # ---- 奖励上下文,rewards.py 在 GRPO 中读这些 ----
+            # ---- reward context; rewards.py reads these during GRPO ----
             "concerns": active,
             "evidence_ids": [e["evidence_id"] for e in ev],
             "product_ids": [p.product_id for p in res.products],
@@ -88,16 +91,17 @@ def build_rows(n: int, mock: bool, top_k: int = 3) -> list[dict]:
     return rows
 
 
-# --------------------------------------------------------------- 教师蒸馏 ---
+# ---------------------------------------------------- teacher distillation ---
 def _key(prompt: str) -> str:
     return hashlib.sha1(prompt.encode()).hexdigest()[:16]
 
 
 def teacher_answer(row: dict, client, model: str, retries: int = 2,
                    stats: dict | None = None) -> str | None:
-    """让强模型生成 SFT 目标答案。返回 None 表示这条应被丢弃。
+    """Have the strong model generate an SFT target answer. None means: drop this row.
 
-    stats 用于累计 token 用量 —— 这样上量前你能按真实用量估成本,而不是靠猜。
+    stats accumulates token usage, so cost for a full-scale run can be estimated from real
+    measurements before scaling up instead of guessed.
     """
     messages = [{"role": "system", "content": SYSTEM},
                 {"role": "user", "content": row["prompt"]}]
@@ -105,7 +109,7 @@ def teacher_answer(row: dict, client, model: str, retries: int = 2,
         try:
             r = client.chat.completions.create(
                 model=model, messages=messages,
-                temperature=0.2 + 0.2 * attempt,      # 重试时略微提高多样性
+                temperature=0.2 + 0.2 * attempt,      # nudge diversity up on each retry
                 response_format={"type": "json_object"})
             if stats is not None and getattr(r, "usage", None):
                 stats["prompt_tokens"] = stats.get("prompt_tokens", 0) + r.usage.prompt_tokens
@@ -114,14 +118,15 @@ def teacher_answer(row: dict, client, model: str, retries: int = 2,
             return r.choices[0].message.content
         except Exception as e:
             if attempt == retries:
-                print(f"    教师调用失败: {e}", file=sys.stderr)
+                print(f"    teacher call failed: {e}", file=sys.stderr)
                 return None
     return None
 
 
 def fake_teacher(row: dict) -> str:
-    """离线假教师:直接照抄检索到的第一个产品,用于无 API key 时跑通链路。
-    它的答案质量不高但格式正确,足以验证过滤与训练管线。"""
+    """Offline fake teacher: simply copies the first retrieved product, so the pipeline can be
+    exercised without an API key. Its answers are not high quality but they are correctly
+    formatted, which is enough to validate the filtering and training pipeline."""
     pid = row["product_ids"][0] if row["product_ids"] else "P001"
     ev = [e for e in row["evidence_ids"] if e.startswith(pid)][:2]
     return json.dumps({
@@ -138,26 +143,30 @@ def fake_teacher(row: dict) -> str:
 
 
 DIAGNOSIS = {
-    "format": "教师没输出合法 JSON —— 检查 prompts.py 的 SYSTEM 是否够明确,"
-              "以及是否用了 response_format={'type':'json_object'}",
-    "ingredient_match": "推荐成分对不上关注点 —— 多半是 ingredient_rules.json 覆盖太少"
-                        "(组员 A 的活),先把每个关注点补到 8-12 个成分再重跑",
-    "grounding": "教师没引用给定的 evidence_id —— 在 prompt 里把'必须引用 evidence_id'"
-                 "写得更硬,或在示例里给出引用格式",
-    "product_validity": "教师在编产品 —— 强调只能从 evidence 里出现过的 product_id 中选",
-    "safety": "缺免责声明或推荐了禁忌成分 —— 检查 SYSTEM 里的免责要求",
+    "format": "The teacher is not emitting valid JSON —— check that SYSTEM in prompts.py is "
+              "explicit enough, and that response_format={'type':'json_object'} is being used",
+    "ingredient_match": "Recommended ingredients do not line up with the concerns —— usually "
+                        "ingredient_rules.json has too little coverage (teammate A's task); "
+                        "bring each concern up to 8-12 ingredients and rerun",
+    "grounding": "The teacher is not citing the evidence_id values it was given —— state the "
+                 "'you must cite evidence_id' rule more forcefully in the prompt, or show the "
+                 "citation format in an example",
+    "product_validity": "The teacher is inventing products —— stress that it may only choose "
+                        "product_id values that appear in the evidence",
+    "safety": "Missing disclaimer, or a contraindicated ingredient was recommended —— check "
+              "the disclaimer requirements in SYSTEM",
 }
 
 
 def distil(rows: list[dict], model: str, threshold: float, cache_path: Path,
            dry: bool, inspect: int = 0) -> list[dict]:
-    """蒸馏 + 按奖励过滤 + 断点续跑 + 质量诊断。"""
+    """Distil, filter by reward, resume from cache, and diagnose quality."""
     cache: dict[str, str] = {}
     if cache_path.exists():
         for line in open(cache_path):
             d = json.loads(line)
             cache[d["k"]] = d["completion"]
-        print(f"  从 cache 恢复 {len(cache)} 条")
+        print(f"  restored {len(cache)} rows from cache")
 
     client = None
     if not dry:
@@ -194,17 +203,18 @@ def distil(rows: list[dict], model: str, threshold: float, cache_path: Path,
                          "teacher_score": round(b["total"], 3)})
 
             if i % 25 == 0:
-                print(f"  {i}/{len(rows)}  保留 {len(kept)}  丢弃 {len(dropped_rows)}")
+                print(f"  {i}/{len(rows)}  kept {len(kept)}  dropped {len(dropped_rows)}")
 
     total_n = len(kept) + len(dropped_rows)
     rate = len(kept) / total_n * 100 if total_n else 0
     print(f"\n{'='*56}")
-    print(f"  通过率 {rate:.0f}%  (保留 {len(kept)} / 丢弃 {len(dropped_rows)}"
-          f",阈值 {threshold},cache 命中 {cached_hits})")
+    print(f"  pass rate {rate:.0f}%  (kept {len(kept)} / dropped {len(dropped_rows)}"
+          f", threshold {threshold}, cache hits {cached_hits})")
 
-    # ---- 各奖励分量分布:通过率低时告诉你是哪一项拖后腿 ----
+    # ---- Per-component reward distribution: when the pass rate is low, this shows which
+    # ---- component is dragging it down.
     if all_breakdowns:
-        print(f"\n  各分量均值(1.0 满分):")
+        print(f"\n  component means (1.0 = perfect):")
         comps = ["format", "ingredient_match", "grounding", "product_validity", "safety"]
         means = {c: sum(b[c] for b in all_breakdowns) / len(all_breakdowns) for c in comps}
         for c in comps:
@@ -212,34 +222,36 @@ def distil(rows: list[dict], model: str, threshold: float, cache_path: Path,
             print(f"    {c:18s} {means[c]:.2f}  {bar}")
         worst = min(means, key=means.get)
         if means[worst] < 0.7:
-            print(f"\n  ⚠️  最弱环节是 {worst}({means[worst]:.2f}):")
+            print(f"\n  ⚠️  weakest component is {worst} ({means[worst]:.2f}):")
             for line in DIAGNOSIS[worst].split(" —— "):
                 print(f"      {line}")
 
-    # ---- token 用量与上量成本外推 ----
+    # ---- Token usage and extrapolated cost for a full-scale run ----
     if usage.get("calls"):
         pt, ct, n = usage["prompt_tokens"], usage["completion_tokens"], usage["calls"]
-        print(f"\n  本次用量:{n} 次调用,输入 {pt:,} tok,输出 {ct:,} tok")
-        print(f"  单条均值:输入 {pt//n:,} tok,输出 {ct//n:,} tok")
-        print(f"  外推 800 条:输入约 {pt//n*800:,} tok,输出约 {ct//n*800:,} tok")
-        print(f"  (按你所用模型的当前单价自行折算)")
+        print(f"\n  this run: {n} calls, {pt:,} input tok, {ct:,} output tok")
+        print(f"  per sample: {pt//n:,} input tok, {ct//n:,} output tok")
+        print(f"  extrapolated to 800: ~{pt//n*800:,} input tok, ~{ct//n*800:,} output tok")
+        print(f"  (convert to dollars using the current price of the model you chose)")
 
-    # ---- 人工抽检 ----
+    # ---- Manual spot check ----
     if inspect and kept:
-        print(f"\n{'='*56}\n  抽检 {min(inspect, len(kept))} 条保留样本(请肉眼判断质量)\n")
+        print(f"\n{'='*56}\n  spot check: {min(inspect, len(kept))} kept samples "
+              f"(judge the quality by eye)\n")
         for r in kept[:inspect]:
-            print(f"  --- 教师分 {r['teacher_score']} ---")
+            print(f"  --- teacher score {r['teacher_score']} ---")
             print(f"  {r['completion'][:600]}\n")
     if inspect and dropped_rows:
         shown = [(r, b) for r, b in dropped_rows if b][:2]
         if shown:
-            print(f"{'='*56}\n  被丢弃的样本(看看为什么不合格)\n")
+            print(f"{'='*56}\n  dropped samples (see why they failed)\n")
             for r, b in shown:
                 low = [k for k in ["format","ingredient_match","grounding","product_validity","safety"]
                        if b[k] < 0.5]
-                print(f"  --- 总分 {b['total']:.2f},拖后腿的分量:{low} ---")
-                print(f"  {r.get('_completion','(教师调用失败,无输出)')[:400]}\n")
-    # ---- 机器可读摘要:notebook 用它自动判断要不要继续烧钱 ----
+                print(f"  --- total {b['total']:.2f}, weak components: {low} ---")
+                print(f"  {r.get('_completion','(teacher call failed, no output)')[:400]}\n")
+    # ---- Machine-readable summary: the notebook uses it to decide automatically whether
+    # ---- it is worth spending more on API calls.
     summary = {
         "kept": len(kept), "dropped": len(dropped_rows), "total": total_n,
         "pass_rate": round(rate / 100, 4), "threshold": threshold,
@@ -254,7 +266,7 @@ def distil(rows: list[dict], model: str, threshold: float, cache_path: Path,
     }
     (cache_path.parent / "distill_summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=1))
-    print(f"  摘要已写入 {cache_path.parent / 'distill_summary.json'}")
+    print(f"  summary written to {cache_path.parent / 'distill_summary.json'}")
     print(f"{'='*56}")
     return kept
 
@@ -265,7 +277,7 @@ def write_jsonl(rows: list[dict], path: Path):
     with open(path, "w") as f:
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
-    print(f"  写入 {len(rows):5d} 条 -> {path}")
+    print(f"  wrote {len(rows):5d} rows -> {path}")
 
 
 def main():
@@ -273,42 +285,44 @@ def main():
     ap.add_argument("--n", type=int, default=800)
     ap.add_argument("--mode", choices=["sft", "rl", "both"], default="both")
     ap.add_argument("--mock-retrieval", action="store_true",
-                    help="用合成目录,不需要组员 A 的真实数据")
+                    help="use the synthetic catalog; teammate A's real data is not required")
     ap.add_argument("--dry-teacher", action="store_true",
-                    help="用离线假教师,不调 API、不花钱(验证链路用)")
+                    help="use the offline fake teacher: no API calls, no cost "
+                         "(for validating the pipeline)")
     ap.add_argument("--model", default=os.getenv("TEACHER_MODEL", "gpt-4o-mini"))
     ap.add_argument("--threshold", type=float, default=0.8,
-                    help="教师答案低于此分直接丢弃 —— SFT 有效性的分水岭")
+                    help="drop teacher answers scoring below this -- what decides whether "
+                         "SFT works at all")
     ap.add_argument("--inspect", type=int, default=0,
-                    help="打印 N 条教师答案供人工检查(小样本试跑时用 3)")
+                    help="print N teacher answers for manual review (use 3 on a small pilot run)")
     ap.add_argument("--test-frac", type=float, default=0.15)
     ap.add_argument("--outdir", default=str(PROCESSED))
     args = ap.parse_args()
 
     out = Path(args.outdir)
-    print(f"采样 {args.n} 条画像并检索证据"
-          f"({'合成目录' if args.mock_retrieval else '真实索引'})…")
+    print(f"Sampling {args.n} profiles and retrieving evidence "
+          f"({'synthetic catalog' if args.mock_retrieval else 'real index'})...")
     rows = build_rows(args.n, args.mock_retrieval)
-    print(f"  得到 {len(rows)} 条有效样本\n")
+    print(f"  got {len(rows)} usable samples\n")
 
     random.shuffle(rows)
     n_test = max(1, int(len(rows) * args.test_frac))
     test_rows, train_rows = rows[:n_test], rows[n_test:]
 
     if args.mode in ("rl", "both"):
-        print("[RL 数据] 不需要目标答案")
+        print("[RL data] no target answers needed")
         write_jsonl(train_rows, out / "rl.jsonl")
-        write_jsonl(test_rows, out / "rl_test.jsonl")   # 组员 C 的评估留出集
+        write_jsonl(test_rows, out / "rl_test.jsonl")   # held-out set for teammate C's eval
         print()
 
     if args.mode in ("sft", "both"):
-        print(f"[SFT 数据] 教师={'离线假教师' if args.dry_teacher else args.model}"
-              f",过滤阈值={args.threshold}")
+        print(f"[SFT data] teacher={'offline fake teacher' if args.dry_teacher else args.model}"
+              f", filter threshold={args.threshold}")
         kept = distil(train_rows, args.model, args.threshold,
                       out / "sft.cache.jsonl", args.dry_teacher, args.inspect)
         write_jsonl(kept, out / "sft.jsonl")
 
-    print("\n下一步:")
+    print("\nNext steps:")
     print("  python -m skincare.llm.sft_lora --epochs 2")
     print("  python -m skincare.llm.grpo_train --steps 300")
 

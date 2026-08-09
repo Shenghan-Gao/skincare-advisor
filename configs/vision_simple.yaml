@@ -1,4 +1,5 @@
-# 自建 CNN 基线 -- 报告里和 transfer 做对比,不要省略这组
+# Hand-rolled CNN baseline. The report compares it against transfer learning, so
+# do not skip this run.
 kind: simple
 epochs: 15
 lr: 0.001

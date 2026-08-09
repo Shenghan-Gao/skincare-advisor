@@ -23,9 +23,10 @@ ui     = ["streamlit>=1.33", "requests>=2.31"]
 dev    = ["pytest>=8.1", "ruff>=0.4", "httpx>=0.27"]
 
 [tool.setuptools.packages.find]
-# app/ 在仓库根,skincare 在 src/ —— 两个根都要找。
-# 少了这一条,`pytest`(控制台脚本,不像 `python -m pytest` 那样把 cwd 加进
-# sys.path)会报 ModuleNotFoundError: No module named 'app'。
+# app/ lives at the repository root while skincare lives under src/, so both roots
+# must be searched. Without this, the `pytest` console script -- which, unlike
+# `python -m pytest`, does not put the current directory on sys.path -- fails with
+# ModuleNotFoundError: No module named 'app'.
 where = ["src", "."]
 include = ["skincare*", "app*"]
 

@@ -1,11 +1,11 @@
 """Train Pillar 1. Run on Colab/Kaggle GPU.
 
 Two ways to run:
-    python -m skincare.vision.train --config configs/vision_transfer.yaml   # 队友用这个
-    python -m skincare.vision.train --kind transfer --epochs 8              # 快速手调
+    python -m skincare.vision.train --config configs/vision_transfer.yaml   # handoff runs
+    python -m skincare.vision.train --kind transfer --epochs 8              # quick manual sweep
 
-交给队友跑时:他只改 configs/*.yaml,不改这个文件。
-产出的 checkpoint 必须能通过 scripts/verify_handoff.py。
+When this is handed to a teammate they change configs/*.yaml only, never this file.
+The checkpoint they return must pass scripts/verify_handoff.py.
 """
 import argparse
 import json
@@ -20,8 +20,9 @@ from skincare.vision.model import build_model, multitask_loss
 
 
 def evaluate(model, loader, device):
-    """评估。关注点 F1 只在"已标注"的位置上计算 —— 与 masked loss 保持一致,
-    否则 -1 会被当成一个真实类别,指标完全失真。"""
+    """Evaluate. Concern F1 is computed only over annotated positions, mirroring the
+    masked loss. Without the mask, sklearn would treat -1 as a genuine class label
+    and the reported scores would be meaningless."""
     model.eval()
     tp, tt, probs, targs = [], [], [], []
     with torch.no_grad():
@@ -56,7 +57,7 @@ def evaluate(model, loader, device):
 
 def parse_args():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--config", help="YAML config (队友交接用). CLI flags override it.")
+    ap.add_argument("--config", help="YAML config used for handoff runs. CLI flags override it.")
     ap.add_argument("--kind", choices=["transfer", "simple"])
     ap.add_argument("--backbone")
     ap.add_argument("--epochs", type=int)
@@ -125,7 +126,7 @@ def main():
                         "metrics": m, "config": cfg}, ckpt_path)
             print(f"  saved -> {ckpt_path}")
 
-    # 交接材料:队友把这个 json 和 .pt 一起交回
+    # Handoff artefact: the teammate returns this JSON alongside the .pt checkpoint.
     _, (y_true, y_pred) = evaluate(model, val_dl, device)
     report = {
         "run_name": cfg["run_name"], "config": cfg, "history": history,
@@ -136,7 +137,7 @@ def main():
         json.dump(report, f, indent=2)
     print(f"\ndone. best={best:.4f}\ncheckpoint: {ckpt_path}")
     print(f"report:     {out_dir / (cfg['run_name'] + '_report.json')}")
-    print(f"\n下一步: python scripts/verify_handoff.py vision {ckpt_path}")
+    print(f"\nNext: python scripts/verify_handoff.py vision {ckpt_path}")
 
 
 if __name__ == "__main__":

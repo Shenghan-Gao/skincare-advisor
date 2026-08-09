@@ -16,10 +16,11 @@ from skincare.llm import rewards as R
 
 
 def _precision():
-    """按显卡能力选精度 —— 免费 Colab 的 T4 是 Turing 架构,不支持 bf16。
-    返回 (bf16, fp16):
-      A100/L4/H100 -> bf16     T4/P100 -> fp16     CPU/MPS -> 都关(fp32)
-    不做这个判断的话:T4 上开 bf16 直接报错,全关又会退回 fp32 把显存撑爆。
+    """Pick the precision the GPU can handle -- free Colab's T4 is Turing and has no bf16.
+    Returns (bf16, fp16):
+      A100/L4/H100 -> bf16     T4/P100 -> fp16     CPU/MPS -> both off (fp32)
+    Without this check: enabling bf16 on a T4 errors out, while leaving both off falls back
+    to fp32 and blows up GPU memory.
     """
     try:
         import torch
@@ -54,7 +55,8 @@ def main():
     ap.add_argument("--data", default=str(PROCESSED / "rl.jsonl"))
     ap.add_argument("--out", default=str(MODELS / "llm" / "grpo"))
     ap.add_argument("--steps", type=int, default=300)
-    ap.add_argument("--group-size", type=int, default=8, help="每个 prompt 采样几个候选")
+    ap.add_argument("--group-size", type=int, default=8,
+                    help="how many candidate completions to sample per prompt")
     ap.add_argument("--accum", type=int, default=4)
     ap.add_argument("--max-completion-length", type=int, default=512)
     args = ap.parse_args()
@@ -67,9 +69,10 @@ def main():
 
     ds = load_dataset("json", data_files=args.data, split="train")
 
-    # ---- 从 SFT adapter 继续训,而不是从裸基座开始 ----
-    # 在裸基座上直接跑 RL 很难收敛:模型还不会输出规定的 JSON 结构,
-    # 格式奖励长时间为 0,组内没有差异 -> 没有梯度信号。
+    # ---- Resume from the SFT adapter rather than starting from the raw base model ----
+    # Running RL directly on the raw base converges poorly: the model cannot yet emit the
+    # required JSON structure, so the format reward stays at 0 for a long time and every
+    # completion in the group scores the same -> no gradient signal.
     if args.adapter and _P(args.adapter).exists():
         import torch
         from peft import PeftModel
@@ -77,12 +80,13 @@ def main():
         dtype = torch.bfloat16 if _BF16 else (torch.float16 if _FP16 else torch.float32)
         base = AutoModelForCausalLM.from_pretrained(args.base, torch_dtype=dtype)
         model = PeftModel.from_pretrained(base, args.adapter, is_trainable=True)
-        peft_config = None                      # 已经有 adapter 了,不能再叠一层
-        print(f"从 SFT adapter 继续: {args.adapter}")
+        peft_config = None                      # adapter already loaded; do not stack another
+        print(f"resuming from SFT adapter: {args.adapter}")
     else:
         model = args.base
         peft_config = LoraConfig(r=16, lora_alpha=32, task_type="CAUSAL_LM")
-        print(f"未找到 adapter({args.adapter}),从裸基座开始 —— RL 会更难收敛")
+        print(f"no adapter found at {args.adapter}; starting from the raw base model "
+              f"-- RL will be much harder to converge")
 
     cfg = GRPOConfig(
         output_dir=args.out,
@@ -97,7 +101,7 @@ def main():
         logging_steps=5,
         save_steps=50,
         bf16=_BF16,
-        fp16=_FP16,                       # T4 用 fp16;不设的话会退回 fp32 撑爆显存
+        fp16=_FP16,                       # fp16 on a T4; without it we fall back to fp32 and OOM
         report_to="none",
     )
     trainer = GRPOTrainer(

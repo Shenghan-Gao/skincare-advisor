@@ -6,13 +6,14 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential curl && rm -rf /var/lib/apt/lists/*
 
-# uv —— 课程要求的包管理器(Assignment 1)
+# uv -- the package manager required by the course (Assignment 1)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# 先只装依赖,利用 Docker 层缓存。
-# 注意:pyproject 用 setuptools 的 src 布局,做 editable 安装时 src/ 必须存在,
-# 否则会报 "Getting requirements to build editable did not run successfully"。
-# 这里先放一个占位包骗过构建,装完再删,真正的源码在下面拷进来。
+# Install dependencies first so this layer stays cached across source changes.
+# Note: the project uses a setuptools src layout, so an editable install fails with
+# "Getting requirements to build editable did not run successfully" unless src/
+# already exists. A placeholder package satisfies the build and is removed right
+# after; the real sources are copied in below.
 COPY pyproject.toml README.md ./
 RUN mkdir -p src/skincare && touch src/skincare/__init__.py \
     && uv pip install --system -e ".[ui]" \

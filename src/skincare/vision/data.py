@@ -37,9 +37,11 @@ class SkinDataset(Dataset):
         row = self.df.iloc[i]
         img = Image.open(row["filepath"]).convert("RGB")
         y_type = torch.tensor(SKIN_TYPES.index(row["skin_type"]))
-        # -1 = 该图未标注此关注点(合并多个数据集时很常见)。
-        # 绝不能当成 0 —— "没标注" ≠ "确认没有",否则模型会学歪。
-        # 损失与评估都会把 -1 的位置 mask 掉。
+        # -1 means this image was never annotated for that concern, which is common
+        # once several source datasets are merged. It must not be recorded as 0:
+        # "not annotated" is not the same claim as "confirmed absent", and treating
+        # it that way teaches the model to predict negative on under-annotated
+        # concerns. Both the loss and the metrics mask these positions out.
         vals = []
         for c in CONCERNS:
             v = row.get(c)

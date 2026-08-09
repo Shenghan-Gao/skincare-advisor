@@ -1,7 +1,8 @@
 """Wrap the trained CNN behind the SkinAnalysis contract.
 
-自描述 checkpoint:架构参数(kind / backbone)从 checkpoint 里读,不从当前代码猜。
-这样队友换 backbone、调宽度重训,你这边不用改任何代码就能加载。
+Self-describing checkpoints: the architecture parameters (kind / backbone) are read out of
+the checkpoint rather than guessed from the current code. That way a teammate can swap the
+backbone or change the width and retrain, and this side loads it without a code change.
 """
 import io
 
@@ -14,7 +15,8 @@ from skincare.vision.model import build_model
 
 
 class CheckpointMismatch(RuntimeError):
-    """标签空间对不上 —— 这是最隐蔽的一类不兼容,单独报错说清楚。"""
+    """Label spaces do not line up -- the most easily missed kind of incompatibility, so it
+    gets its own exception type with an explicit message."""
 
 
 class SkinClassifier:
@@ -24,33 +26,36 @@ class SkinClassifier:
         cfg = ck.get("config", {})
         kind = ck.get("kind", "transfer")
 
-        # ---- 从 checkpoint 自身重建架构,而不是相信当前代码的默认值 ----
+        # ---- Rebuild the architecture from the checkpoint, not from the current defaults ----
         kw = {}
         if kind == "transfer":
             kw["backbone"] = cfg.get("backbone", "resnet18")
-            kw["pretrained"] = False        # 权重来自 checkpoint,不必再下载
+            kw["pretrained"] = False        # weights come from the checkpoint, no download
         self.model = build_model(kind, **kw)
 
-        # ---- 先查标签空间,再 load,把错误信息说人话 ----
+        # ---- Check the label space before loading, so the error message is readable ----
         sd = ck["state_dict"]
         n_concern = sd["head_concern.weight"].shape[0]
         n_type = sd["head_type.weight"].shape[0]
         if n_concern != len(CONCERNS) or n_type != len(SKIN_TYPES):
             raise CheckpointMismatch(
-                f"标签空间不一致 —— checkpoint 是 {n_type} 个肤质 / {n_concern} 个关注点,"
-                f"当前 config.py 是 {len(SKIN_TYPES)} / {len(CONCERNS)}。\n"
-                f"说明有人改过 config.py 的 SKIN_TYPES / CONCERNS。"
-                f"这会同时影响 schemas、奖励函数和已生成的训练数据 —— 先统一标签空间再重训。"
+                f"Label spaces disagree -- the checkpoint has {n_type} skin types / "
+                f"{n_concern} concerns, while the current config.py has "
+                f"{len(SKIN_TYPES)} / {len(CONCERNS)}.\n"
+                f"That means someone changed SKIN_TYPES / CONCERNS in config.py. "
+                f"This affects the schemas, the reward functions and the training data "
+                f"already generated -- agree on one label space, then retrain."
             )
 
         try:
             self.model.load_state_dict(sd)
         except RuntimeError as e:
             raise CheckpointMismatch(
-                f"权重与架构不匹配。checkpoint 记录 kind={kind}, "
-                f"backbone={cfg.get('backbone', 'n/a')}。\n"
-                f"通常说明训练用的 model.py 与当前 model.py 不是同一版 —— "
-                f"让训练者确认基于哪个 git tag,或让他连同 model.py 一起交回。\n原始错误: {e}"
+                f"Weights do not match the architecture. The checkpoint records kind={kind}, "
+                f"backbone={cfg.get('backbone', 'n/a')}.\n"
+                f"This usually means the model.py used for training is not the same version "
+                f"as the current one -- ask whoever trained it which git tag it was built "
+                f"from, or have them hand back their model.py with it.\nOriginal error: {e}"
             ) from e
 
         self.model.to(self.device).eval()

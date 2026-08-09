@@ -22,7 +22,7 @@ cp .env.example .env          # USE_MOCKS=1 by default
 
 make api        # http://localhost:8000/docs
 make ui         # http://localhost:8501
-make test       # 17 tests: contract + rewards + eval harness + data build
+make test       # 31 tests: contract + rewards + eval harness + data build
 ```
 
 `USE_MOCKS=1` makes the API answer from `fixtures/`. **This is what lets four
@@ -44,13 +44,13 @@ Flip `USE_MOCKS=0` once stages 1–4 produce checkpoints.
 
 ## Docs
 
-**新加入的组员从这里开始:** [`CONTRIBUTING.md`](CONTRIBUTING.md) —— 上手步骤、文件归属、冻结契约、交接与密钥纪律
+**New teammates start here:** [`CONTRIBUTING.md`](CONTRIBUTING.md) — onboarding steps, file ownership, frozen contracts, handoff and secret-key discipline. *(Internal team document, written in Chinese.)*
 
-**读文档的顺序:**
-1. `docs/TECH_DESIGN.md` — 工作手册:架构、文件归属、冻结契约、每个模块的命令与验收
-2. `docs/TEAM_TASKS.md` — 逐人任务、七天节奏、报告章节归属
-3. [`docs/DEPLOY.md`](docs/DEPLOY.md) — 部署、基准测试与 L4 报告表格
-4. `docs/HANDOFF.md` — 交接协议、checkpoint 契约、为什么改代码会加载不了模型
+**Reading order:**
+1. `docs/TECH_DESIGN.md` — the working manual: architecture, file ownership, frozen contracts, per-module commands and acceptance checks
+2. `docs/TEAM_TASKS.md` — per-person tasks, the seven-day cadence, report section ownership *(internal team document, written in Chinese)*
+3. [`docs/DEPLOY.md`](docs/DEPLOY.md) — deployment, benchmarking and the L4 report tables
+4. `docs/HANDOFF.md` — handoff protocol, checkpoint contract, and why editing code can break model loading *(internal team document, written in Chinese)*
 
 ## Layout
 

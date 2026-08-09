@@ -12,10 +12,11 @@ from skincare.config import MODELS, PROCESSED
 
 
 def _precision():
-    """按显卡能力选精度 —— 免费 Colab 的 T4 是 Turing 架构,不支持 bf16。
-    返回 (bf16, fp16):
-      A100/L4/H100 -> bf16     T4/P100 -> fp16     CPU/MPS -> 都关(fp32)
-    不做这个判断的话:T4 上开 bf16 直接报错,全关又会退回 fp32 把显存撑爆。
+    """Pick the precision the GPU can handle -- free Colab's T4 is Turing and has no bf16.
+    Returns (bf16, fp16):
+      A100/L4/H100 -> bf16     T4/P100 -> fp16     CPU/MPS -> both off (fp32)
+    Without this check: enabling bf16 on a T4 errors out, while leaving both off falls back
+    to fp32 and blows up GPU memory.
     """
     try:
         import torch
@@ -26,7 +27,7 @@ def _precision():
         return False, False
 
 
-BASE = "Qwen/Qwen2.5-1.5B-Instruct"   # 小到免费 Colab T4 也能跑
+BASE = "Qwen/Qwen2.5-1.5B-Instruct"   # small enough to train on a free Colab T4
 _BF16, _FP16 = _precision()
 
 
@@ -60,11 +61,11 @@ def main():
         per_device_train_batch_size=args.bs,
         gradient_accumulation_steps=args.accum,
         learning_rate=args.lr,
-        max_length=args.max_len,          # TRL>=0.20 改名(旧版叫 max_seq_length)
+        max_length=args.max_len,          # renamed in TRL>=0.20 (used to be max_seq_length)
         logging_steps=10,
         save_strategy="epoch",
         bf16=_BF16,
-        fp16=_FP16,                       # T4 用 fp16;不设的话会退回 fp32 撑爆显存
+        fp16=_FP16,                       # fp16 on a T4; without it we fall back to fp32 and OOM
         gradient_checkpointing=True,
         report_to="none",
     )

@@ -26,6 +26,7 @@ reports/*.json
 skincare_for_colab.zip
 # 任何压缩包都不该进仓库
 *.zip
+*.tar.gz
 # 临时清理目录
 _to_delete/
 # 蒸馏摘要,每次跑都会变

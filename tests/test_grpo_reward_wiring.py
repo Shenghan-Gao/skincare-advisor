@@ -1,9 +1,10 @@
-"""验证 GRPO 的奖励函数接线 —— 最容易出错又最难发现的地方。
+"""Verify the wiring of GRPO's reward functions — the easiest thing to get wrong and the hardest to notice.
 
-TRL 调用 reward_func 的方式是:
-    reward_func(prompts=[...], completions=[...], <数据集其余列>=[每条一个值], ...)
-如果适配器索引错了,奖励会静默返回 0 —— 训练看起来在跑,其实学不到东西。
-本测试用"已知满分"的答案证明上下文确实传到了。
+TRL calls reward_func like this:
+    reward_func(prompts=[...], completions=[...], <remaining dataset columns>=[one value per row], ...)
+If the adapter indexes them wrongly, the rewards silently come back as 0 — training looks like it is
+running, but the model learns nothing.
+This test uses an answer with a "known perfect score" to prove the context really does get through.
 """
 import json
 
@@ -21,7 +22,7 @@ BAD = "just buy something nice"
 
 
 def _trl_style_call(fn, completions, **columns):
-    """模拟 TRL 的调用约定:每个数据集列都是与 completions 等长的 list。"""
+    """Emulate TRL's calling convention: every dataset column is a list the same length as completions."""
     return _make_reward_fn(fn)(completions, **columns)
 
 
@@ -30,19 +31,19 @@ def test_context_actually_reaches_reward_functions():
         R.grounding_reward, [GOOD, BAD],
         evidence_ids=[["P001:rev:0", "P001:desc:0"], ["P001:rev:0"]],
         product_ids=[["P001"], ["P001"]], concerns=[["acne"], ["acne"]])
-    assert out[0] == 1.0, f"上下文没传到 grounding_reward,得到 {out[0]}"
+    assert out[0] == 1.0, f"the context never reached grounding_reward; got {out[0]}"
     assert out[1] == 0.0
 
 
 def test_per_completion_context_is_indexed_not_broadcast():
-    """两条 completion 的上下文不同 —— 若适配器把整个 list 传给每一条,这里会挂。"""
+    """The two completions have different contexts — if the adapter passes the whole list to each one, this fails."""
     out = _trl_style_call(R.product_validity_reward, [GOOD, GOOD],
                           product_ids=[["P001"], ["P999"]])
-    assert out == [1.0, 0.0], f"按条索引失败: {out}"
+    assert out == [1.0, 0.0], f"per-row indexing failed: {out}"
 
 
 def test_all_five_reward_funcs_survive_trl_extra_kwargs():
-    """TRL 还会塞 trainer_state / log_metric 等额外 kwarg,不能把函数打挂。"""
+    """TRL also injects extra kwargs such as trainer_state / log_metric, which must not break the functions."""
     extras = {"trainer_state": object(), "log_metric": lambda *a, **k: None,
               "prompts": ["p1", "p2"]}
     for fn in [R.format_reward, R.ingredient_match_reward, R.grounding_reward,
@@ -51,11 +52,11 @@ def test_all_five_reward_funcs_survive_trl_extra_kwargs():
                               evidence_ids=[["P001:rev:0"], ["P001:rev:0"]],
                               product_ids=[["P001"], ["P001"]],
                               pregnant=[False, False], avoid=[[], []], **extras)
-        assert len(out) == 2 and all(isinstance(x, float) for x in out), f"{fn.__name__} 返回 {out}"
-        assert out[0] >= out[1], f"{fn.__name__} 没能区分好答案与垃圾答案"
+        assert len(out) == 2 and all(isinstance(x, float) for x in out), f"{fn.__name__} returned {out}"
+        assert out[0] >= out[1], f"{fn.__name__} failed to distinguish a good answer from a junk one"
 
 
 def test_reward_func_names_are_preserved():
-    """TRL 用函数名做日志键(rewards/<name>/mean),名字丢了报告曲线就没法区分。"""
+    """TRL uses the function name as the logging key (rewards/<name>/mean); lose the name and the report curves become indistinguishable."""
     for fn in [R.format_reward, R.grounding_reward]:
         assert _make_reward_fn(fn).__name__ == fn.__name__

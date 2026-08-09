@@ -1,10 +1,12 @@
-"""交接验收脚本 -- 队友跑通这个才算交付,否则不要合并。
+"""Handoff acceptance script -- a teammate's work counts as delivered only once this passes;
+do not merge otherwise.
 
     python scripts/verify_handoff.py vision models/vision/transfer_resnet18_lr3e4.pt
     python scripts/verify_handoff.py rag
 
-它检查的是"契约",不是"效果好不好":文件能不能被主线代码加载、
-输出形状对不对、接口能不能用。效果好不好看指标表,那是另一回事。
+What it checks is the "contract", not how good the results are: whether the mainline code
+can load the file, whether the output shapes are right, whether the interface is usable.
+How good the results are is what the metrics table is for -- a separate question.
 """
 import json
 import sys
@@ -40,7 +42,7 @@ def verify_vision(ckpt_path: str) -> bool:
         print(BAD, f"SkinClassifier could not load it: {e}"); return False
     print(OK, "loads through SkinClassifier")
 
-    # 用一张假图跑一次前向,确认输出满足 SkinAnalysis 契约
+    # Run a forward pass on a dummy image to confirm the output meets the SkinAnalysis contract
     import io
     from PIL import Image
     buf = io.BytesIO()
@@ -52,7 +54,7 @@ def verify_vision(ckpt_path: str) -> bool:
         print(BAD, f"expected 6 concern scores, got {len(out.concerns)}"); return False
     print(OK, f"inference contract holds -> {out.skin_type.value} "
               f"({out.skin_type_confidence:.2f}), {len(out.concerns)} concerns")
-    print("\nPASS -- 可以交付,把 .pt 和指标表一起给 Anna\n")
+    print("\nPASS -- ready to deliver; hand Anna the .pt together with the metrics table\n")
     return True
 
 
@@ -77,10 +79,10 @@ def verify_rag() -> bool:
         print(BAD, "query returned no evidence"); return False
     ids = [e.evidence_id for e in res.evidence]
     if len(ids) != len(set(ids)):
-        print(BAD, "evidence_id 不唯一 -- 奖励函数会误判,必须修"); return False
+        print(BAD, "evidence_id not unique -- the reward function will misjudge"); return False
     print(OK, f"{len(res.products)} products, {len(res.evidence)} evidence, ids unique")
     print(OK, f"sample evidence_id: {ids[0]}")
-    print("\nPASS -- 检索链路可用\n")
+    print("\nPASS -- the retrieval pipeline works\n")
     return True
 
 

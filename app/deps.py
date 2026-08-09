@@ -14,20 +14,22 @@ def use_mocks() -> bool:
 
 
 def use_mock_retrieval() -> bool:
-    """真实链路(USE_MOCKS=0)下,是否用 MockRetriever 顶替 FAISS 检索。
+    """On the real pipeline (USE_MOCKS=0), whether MockRetriever stands in for FAISS search.
 
-    组员 A 的 chunks.faiss / chunks_meta.parquet 还没交付,真实 Retriever 一构造就
-    ImportError/FileNotFound。打开这个开关后走的仍是「检索→生成→安全过滤」真实代码路径,
-    只是把索引换成 fixtures 里的合成目录。索引到位后置 0 即可。
+    Teammate A's chunks.faiss / chunks_meta.parquet have not been delivered yet, so the real
+    Retriever raises ImportError/FileNotFound as soon as it is constructed. With this switch on
+    we still execute the real "retrieve -> generate -> safety filter" code path; only the index
+    is swapped for the synthetic catalog in fixtures. Set it back to 0 once the index lands.
     """
     return os.getenv("USE_MOCK_RETRIEVAL", "0") == "1"
 
 
 def use_stub_generator() -> bool:
-    """真实链路下,是否用 StubAdvisor 顶替 Advisor(OpenAI / 本地 LLM)。
+    """On the real pipeline, whether StubAdvisor stands in for Advisor (OpenAI / local LLM).
 
-    没有 API key、没有 GPU 时用它:输出仍是合法 AdvisorResponse,且引用的是本次检索
-    真实返回的 evidence_id / product_id,因此奖励函数与安全护栏都能被真实检验。
+    Use it when there is no API key and no GPU: the output is still a valid AdvisorResponse,
+    and it cites the evidence_id / product_id actually returned by this retrieval call, so the
+    reward functions and the safety guardrails are genuinely exercised.
     """
     return os.getenv("USE_STUB_GENERATOR", "0") == "1"
 
@@ -45,7 +47,8 @@ def get_vision_model():
 
 @lru_cache
 def get_retriever():
-    # 鸭子类型:MockRetriever.search 与 Retriever.search 签名/返回值完全一致,直接互换
+    # Duck typing: MockRetriever.search has exactly the same signature and return type as
+    # Retriever.search, so the two are drop-in interchangeable.
     if use_mock_retrieval():
         from skincare.rag.mock_retrieval import MockRetriever
         return MockRetriever(os.getenv("MOCK_CATALOG") or None)
@@ -55,7 +58,8 @@ def get_retriever():
 
 @lru_cache
 def get_generator():
-    # 同上:StubAdvisor.recommend 与 Advisor.recommend 同签名,无需改 router
+    # Same idea: StubAdvisor.recommend shares Advisor.recommend's signature, so the router
+    # needs no changes.
     if use_stub_generator():
         from skincare.llm.stub_advisor import StubAdvisor
         return StubAdvisor()

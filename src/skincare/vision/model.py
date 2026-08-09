@@ -64,10 +64,13 @@ def build_model(kind: str = "transfer", **kw) -> nn.Module:
 
 
 def multitask_loss(type_logits, concern_logits, y_type, y_concern, w: float = 1.0):
-    """多任务损失。关注点用 masked BCE:y_concern 中 -1 表示"未标注",不计入损失。
+    """Multi-task loss. Concerns use a masked BCE: -1 in ``y_concern`` marks an
+    unannotated label and is excluded from the loss.
 
-    为什么必须 mask:数据集 A 标了痘痘却没标皱纹,若把缺失当成 0,
-    模型会从"没标注"里学到"确认没有",那几个关注点会被系统性带偏。
+    Why the mask is required: one source dataset may annotate acne but never
+    annotate wrinkles. If those blanks were folded in as zeros, the model would
+    learn "confirmed absent" from what is really "never labelled", and every
+    sparsely annotated concern would be biased toward the negative class.
     """
     ce = nn.functional.cross_entropy(type_logits, y_type)
     mask = (y_concern >= 0).float()

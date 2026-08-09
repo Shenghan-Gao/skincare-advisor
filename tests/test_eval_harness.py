@@ -1,4 +1,4 @@
-"""组员 C 第一天的验证:不需要模型/GPU/API key。
+"""Member C's day-one validation: no model, no GPU, no API key required.
 
     pytest tests/test_eval_harness.py -v
 """
@@ -15,18 +15,18 @@ def load_cases():
 
 
 def test_fixture_file_exists():
-    assert FIXTURES.exists(), "缺 fixtures/eval_samples.jsonl"
+    assert FIXTURES.exists(), "fixtures/eval_samples.jsonl is missing"
     assert len(load_cases()) >= 8
 
 
 def test_every_case_matches_expected_range():
-    """每个已知答案的样本都必须落在期望区间 —— 这验证评估器本身是对的。"""
+    """Every known-answer sample must land inside its expected range — this proves the evaluator itself is correct."""
     failures = []
     for c in load_cases():
         got = reward_breakdown(c["completion"], **c["ctx"])
         for k, (lo, hi) in c["expect"].items():
             if not lo <= got[k] <= hi:
-                failures.append(f"{c['case']}.{k}={got[k]:.2f} 不在 [{lo},{hi}]")
+                failures.append(f"{c['case']}.{k}={got[k]:.2f} not in [{lo},{hi}]")
     assert not failures, "\n".join(failures)
 
 
@@ -35,7 +35,7 @@ def test_hallucination_is_detected():
     good = reward_breakdown(cases["perfect"]["completion"], **cases["perfect"]["ctx"])
     bad = reward_breakdown(cases["hallucinated_citation"]["completion"],
                            **cases["hallucinated_citation"]["ctx"])
-    assert bad["grounding"] < good["grounding"], "评估器没能识别伪造引用"
+    assert bad["grounding"] < good["grounding"], "the evaluator failed to detect a fabricated citation"
 
 
 def test_markdown_table_renders():

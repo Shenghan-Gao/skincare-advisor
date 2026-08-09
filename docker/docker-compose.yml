@@ -1,10 +1,11 @@
-# 用法(在仓库根目录):
+# Usage, from the repository root:
 #   make docker-up
-# 或手动:
+# or, manually:
 #   docker compose --project-directory . -f docker/docker-compose.yml up --build
 #
-# 不需要 .env 也能起来:下面所有变量都带默认值。
-# 有 .env 时会自动读取(所以本地开发可以在根目录放 .env 覆盖)。
+# A .env file is not required: every variable below has a default, so a fresh
+# clone starts cleanly. When a .env is present at the repo root it is picked up
+# automatically, which is what local development uses to override these values.
 services:
   api:
     build:

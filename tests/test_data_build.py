@@ -1,4 +1,4 @@
-"""SFT/RL 数据构造的验证 —— 不需要 API key、不需要 GPU、不需要真实数据。
+"""Validation of the SFT/RL data construction — no API key, no GPU, no real data required.
 
     pytest tests/test_data_build.py -v
 """
@@ -20,8 +20,8 @@ def test_mock_retriever_returns_relevant_products():
         top_k=3)
     assert res.products and res.evidence
     ids = [e.evidence_id for e in res.evidence]
-    assert len(ids) == len(set(ids)), "evidence_id 必须唯一"
-    assert all(":" in i for i in ids), "evidence_id 必须符合 P001:rev:0 格式"
+    assert len(ids) == len(set(ids)), "evidence_id must be unique"
+    assert all(":" in i for i in ids), "evidence_id must follow the P001:rev:0 format"
 
 
 def test_budget_filter_is_respected():
@@ -38,9 +38,9 @@ def test_rows_carry_full_reward_context():
     assert rows
     for r in rows:
         for k in ["prompt", "concerns", "evidence_ids", "product_ids", "pregnant", "avoid"]:
-            assert k in r, f"缺奖励上下文字段 {k}"
-        assert r["evidence_ids"], "没有证据的样本不应产生"
-        # prompt 里必须真的出现这些 evidence_id,否则模型没法引用
+            assert k in r, f"missing reward-context field {k}"
+        assert r["evidence_ids"], "a sample with no evidence should never be produced"
+        # these evidence_ids must actually appear in the prompt, or the model cannot cite them
         for eid in r["evidence_ids"][:3]:
             assert eid in r["prompt"]
 
@@ -50,15 +50,15 @@ def test_fake_teacher_output_is_valid_and_scores_well():
     for r in rows:
         c = fake_teacher(r)
         obj = json.loads(c)
-        assert obj["recommendations"], "假教师必须给出推荐"
+        assert obj["recommendations"], "the fake teacher must produce recommendations"
         s = total_reward(c, concerns=r["concerns"], evidence_ids=r["evidence_ids"],
                          product_ids=r["product_ids"], pregnant=r["pregnant"],
                          avoid=r["avoid"])
-        assert s > 0.5, f"假教师答案得分过低 {s:.2f},说明链路有问题"
+        assert s > 0.5, f"fake-teacher answer scores too low ({s:.2f}), which means the pipeline is broken"
 
 
 def test_filtering_actually_drops_bad_answers():
-    """过滤是 SFT 有没有效果的分水岭 —— 验证它真的会丢掉坏答案。"""
+    """Filtering is what decides whether SFT works — verify it really does drop bad answers."""
     rows = build_rows(3, mock=True)
     r = rows[0]
     bad = json.dumps({"recommendations": [{
@@ -67,10 +67,10 @@ def test_filtering_actually_drops_bad_answers():
         "matched_concerns": []}], "routine_note": "", "disclaimer": ""})
     score = total_reward(bad, concerns=r["concerns"], evidence_ids=r["evidence_ids"],
                          product_ids=r["product_ids"], pregnant=False, avoid=[])
-    assert score < 0.8, "编造产品+伪造引用的答案必须被 0.8 阈值挡下"
+    assert score < 0.8, "an answer with an invented product plus a fabricated citation must be blocked by the 0.8 threshold"
 
 
 def test_sample_profile_shape():
     p, a = sample_profile()
-    assert len(a["concerns"]) == 6, "必须给全部 6 个关注点打分"
+    assert len(a["concerns"]) == 6, "all 6 concerns must be scored"
     assert a["skin_type"] in ["oily", "dry", "combination", "normal"]

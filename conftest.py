@@ -1,8 +1,9 @@
-"""让测试在"未安装本项目"的情况下也能跑。
+"""Let the tests run even when this project has not been installed.
 
-pytest 的控制台脚本不会把仓库根加进 sys.path(`python -m pytest` 会),
-所以 `import app` 会失败。pyproject 已把 app 纳入安装包,这里再加一道保险,
-这样组员即使忘了 `uv pip install -e .` 也能直接跑测试。
+The pytest console script does not put the repository root on sys.path (`python -m pytest`
+does), so `import app` would fail. pyproject already ships app as part of the installed
+package; this is a second line of defence so that a teammate who forgot to run
+`uv pip install -e .` can still run the tests directly.
 """
 import sys
 from pathlib import Path
