@@ -36,3 +36,8 @@ distill_summary.json
 *.egg-info/
 build/
 dist/
+
+# 会话日志与密钥材料(colab log 会把 exec 历史导出成 ipynb)
+reports/*.ipynb
+.env_key
+*.key

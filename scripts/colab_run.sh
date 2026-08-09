@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Drive the whole training pipeline on a remote Colab runtime from your terminal.
 #
+#   read -rs OPENAI_API_KEY && export OPENAI_API_KEY   # prompt silently; keeps the
+#                                                      # key out of ~/.zsh_history
 #   ./scripts/colab_run.sh            # full pipeline, then pull the adapters down
 #   ./scripts/colab_run.sh status     # what is the remote doing right now
 #   ./scripts/colab_run.sh fetch      # just download artefacts from a finished run
@@ -44,6 +46,18 @@ cmd_fetch() {
     colab download -s "$SESSION" "/content/drive/MyDrive/skincare_data/$f" "data/processed/$f" || true
   done
   colab log -s "$SESSION" -o reports/colab_run.ipynb || true
+  # The exported session log is the one artefact that could still capture a secret
+  # (e.g. if someone pasted a key into a REPL by hand). Refuse to leave it lying
+  # around unchecked -- reports/*.ipynb is gitignored, but check anyway.
+  if [ -f reports/colab_run.ipynb ] && grep -qE 'sk-[A-Za-z0-9_-]{20,}' reports/colab_run.ipynb; then
+    echo
+    echo "!! An API key appears inside reports/colab_run.ipynb."
+    echo "!! It is gitignored, but delete it and rotate the key to be safe:"
+    echo "!!   rm reports/colab_run.ipynb"
+    echo "!!   https://platform.openai.com/settings/organization/api-keys"
+  else
+    echo "session log clean (no key material found)"
+  fi
   echo "artefacts are in models/llm/ and data/processed/; full log in reports/colab_run.ipynb"
 }
 
@@ -79,12 +93,19 @@ PY
     echo "==> uploading pipeline script"
     colab upload -s "$SESSION" scripts/run_pipeline.py /content/run_pipeline.py
 
-    echo "==> exporting OPENAI_API_KEY onto the runtime (ephemeral VM, torn down after)"
-    colab exec -s "$SESSION" <<PY
-import os
-os.environ['OPENAI_API_KEY'] = "$OPENAI_API_KEY"
-open('/content/.env_key','w').write("$OPENAI_API_KEY")
-print('key set, length', len(os.environ['OPENAI_API_KEY']))
+    # Transfer the key as an uploaded file, never as text inside `colab exec`.
+    # Anything typed into an exec cell lands in the session history, and
+    # `colab log` later exports that history to a notebook -- which is how a key
+    # ends up committed to a public repo. Uploading keeps it out of the log.
+    echo "==> transferring OPENAI_API_KEY as a file (kept out of the session log)"
+    KEYFILE="$(mktemp)"; chmod 600 "$KEYFILE"
+    printf '%s' "$OPENAI_API_KEY" > "$KEYFILE"
+    trap 'rm -f "$KEYFILE"' EXIT INT TERM
+    colab upload -s "$SESSION" "$KEYFILE" /content/.env_key
+    rm -f "$KEYFILE"; trap - EXIT INT TERM
+    colab exec -s "$SESSION" <<'PY'
+key = open('/content/.env_key').read().strip()
+print('key received on runtime, length', len(key))
 PY
 
     echo "==> running the pipeline (index -> distil -> SFT -> GRPO). This takes hours."
