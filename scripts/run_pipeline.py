@@ -104,10 +104,24 @@ def stage_setup():
         d.mkdir(parents=True, exist_ok=True)
     log("Drive ready")
 
-    if not (WORK / "pyproject.toml").exists():
-        sh(f"git clone -q {REPO} {WORK}", check=True)
+    # A previous partial run may have left /content/skincare half-populated, and
+    # `git clone` into a non-empty directory fails with exit 128. Handle all three
+    # states explicitly rather than assuming a clean VM.
+    if (WORK / ".git").exists():
+        log("repo already cloned; syncing to origin/main")
+        sh("git fetch -q --all", check=False)
+        sh("git reset -q --hard origin/main", check=False)
     else:
-        sh("git pull -q", check=False)
+        if WORK.exists():
+            log(f"removing stale {WORK} before cloning")
+            shutil.rmtree(WORK, ignore_errors=True)
+        rc = subprocess.run(f"git clone -q {REPO} {WORK}", shell=True).returncode
+        if rc != 0:
+            raise SystemExit(
+                f"git clone failed (exit {rc}). Check the runtime has network access "
+                f"and that {REPO} is reachable anonymously.")
+    if not (WORK / "pyproject.toml").exists():
+        raise SystemExit(f"clone produced no pyproject.toml at {WORK}")
     os.chdir(WORK)
     sys.path[:0] = [str(WORK), str(WORK / "src")]
 
