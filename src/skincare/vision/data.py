@@ -37,7 +37,14 @@ class SkinDataset(Dataset):
         row = self.df.iloc[i]
         img = Image.open(row["filepath"]).convert("RGB")
         y_type = torch.tensor(SKIN_TYPES.index(row["skin_type"]))
-        y_concern = torch.tensor([float(row.get(c, 0)) for c in CONCERNS])
+        # -1 = 该图未标注此关注点(合并多个数据集时很常见)。
+        # 绝不能当成 0 —— "没标注" ≠ "确认没有",否则模型会学歪。
+        # 损失与评估都会把 -1 的位置 mask 掉。
+        vals = []
+        for c in CONCERNS:
+            v = row.get(c)
+            vals.append(float(v) if pd.notna(v) else -1.0)
+        y_concern = torch.tensor(vals, dtype=torch.float32)
         return self.tf(img), y_type, y_concern
 
 

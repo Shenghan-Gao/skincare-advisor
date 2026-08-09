@@ -1,0 +1,37 @@
+Metadata-Version: 2.4
+Name: skincare-advisor
+Version: 0.1.0
+Summary: AI skin analysis + post-trained LLM skincare advisor (Gen AI course project)
+Requires-Python: >=3.10
+Requires-Dist: fastapi>=0.110
+Requires-Dist: uvicorn[standard]>=0.27
+Requires-Dist: pydantic>=2.6
+Requires-Dist: python-dotenv>=1.0
+Requires-Dist: python-multipart>=0.0.9
+Requires-Dist: numpy>=1.26
+Requires-Dist: pandas>=2.2
+Provides-Extra: vision
+Requires-Dist: torch>=2.2; extra == "vision"
+Requires-Dist: torchvision>=0.17; extra == "vision"
+Requires-Dist: scikit-learn>=1.4; extra == "vision"
+Requires-Dist: pillow>=10.2; extra == "vision"
+Requires-Dist: matplotlib>=3.8; extra == "vision"
+Requires-Dist: pyyaml>=6.0; extra == "vision"
+Provides-Extra: rag
+Requires-Dist: sentence-transformers>=2.6; extra == "rag"
+Requires-Dist: faiss-cpu>=1.8; extra == "rag"
+Requires-Dist: openai>=1.30; extra == "rag"
+Provides-Extra: llm
+Requires-Dist: transformers>=4.40; extra == "llm"
+Requires-Dist: peft>=0.10; extra == "llm"
+Requires-Dist: trl>=0.9; extra == "llm"
+Requires-Dist: accelerate>=0.30; extra == "llm"
+Requires-Dist: datasets>=2.19; extra == "llm"
+Requires-Dist: bitsandbytes>=0.43; extra == "llm"
+Provides-Extra: ui
+Requires-Dist: streamlit>=1.33; extra == "ui"
+Requires-Dist: requests>=2.31; extra == "ui"
+Provides-Extra: dev
+Requires-Dist: pytest>=8.1; extra == "dev"
+Requires-Dist: ruff>=0.4; extra == "dev"
+Requires-Dist: httpx>=0.27; extra == "dev"

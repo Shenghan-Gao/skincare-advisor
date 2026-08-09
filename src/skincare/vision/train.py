@@ -11,25 +11,46 @@ import argparse
 import json
 from pathlib import Path
 
+import numpy as np
 import torch
 from sklearn.metrics import classification_report, f1_score
-from skincare.config import MODELS, PROCESSED
+from skincare.config import CONCERNS, MODELS, PROCESSED
 from skincare.vision.data import make_loaders
 from skincare.vision.model import build_model, multitask_loss
 
 
 def evaluate(model, loader, device):
+    """评估。关注点 F1 只在"已标注"的位置上计算 —— 与 masked loss 保持一致,
+    否则 -1 会被当成一个真实类别,指标完全失真。"""
     model.eval()
-    tp, tt, cp, ct = [], [], [], []
+    tp, tt, probs, targs = [], [], [], []
     with torch.no_grad():
         for x, yt, yc in loader:
             lt, lc = model(x.to(device))
-            tp += lt.argmax(1).cpu().tolist(); tt += yt.tolist()
-            cp += (torch.sigmoid(lc).cpu() > 0.5).float().tolist(); ct += yc.tolist()
+            tp += lt.argmax(1).cpu().tolist()
+            tt += yt.tolist()
+            probs.append(torch.sigmoid(lc).cpu().numpy())
+            targs.append(yc.numpy())
+
+    probs = np.concatenate(probs) if probs else np.zeros((0, len(CONCERNS)))
+    targs = np.concatenate(targs) if targs else np.zeros((0, len(CONCERNS)))
+    preds = (probs > 0.5).astype(int)
+
+    per_concern, coverage = {}, {}
+    for j, name in enumerate(CONCERNS):
+        m = targs[:, j] >= 0
+        coverage[name] = int(m.sum())
+        per_concern[name] = (f1_score(targs[m, j].astype(int), preds[m, j],
+                                      zero_division=0) if m.sum() else None)
+    scored = [v for v in per_concern.values() if v is not None]
+
     return {
         "type_acc": sum(int(a == b) for a, b in zip(tp, tt)) / max(len(tt), 1),
         "type_macro_f1": f1_score(tt, tp, average="macro", zero_division=0),
-        "concern_macro_f1": f1_score(ct, cp, average="macro", zero_division=0),
+        "concern_macro_f1": sum(scored) / len(scored) if scored else 0.0,
+        "concern_f1_per_class": {k: (round(v, 4) if v is not None else None)
+                                 for k, v in per_concern.items()},
+        "concern_labeled_counts": coverage,
     }, (tt, tp)
 
 

@@ -64,6 +64,14 @@ def build_model(kind: str = "transfer", **kw) -> nn.Module:
 
 
 def multitask_loss(type_logits, concern_logits, y_type, y_concern, w: float = 1.0):
+    """多任务损失。关注点用 masked BCE:y_concern 中 -1 表示"未标注",不计入损失。
+
+    为什么必须 mask:数据集 A 标了痘痘却没标皱纹,若把缺失当成 0,
+    模型会从"没标注"里学到"确认没有",那几个关注点会被系统性带偏。
+    """
     ce = nn.functional.cross_entropy(type_logits, y_type)
-    bce = nn.functional.binary_cross_entropy_with_logits(concern_logits, y_concern)
+    mask = (y_concern >= 0).float()
+    raw = nn.functional.binary_cross_entropy_with_logits(
+        concern_logits, y_concern.clamp_min(0), reduction="none")
+    bce = (raw * mask).sum() / mask.sum().clamp_min(1.0)
     return ce + w * bce, ce.item(), bce.item()
