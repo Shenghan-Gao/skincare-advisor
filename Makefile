@@ -1,4 +1,4 @@
-.PHONY: install install-full api ui test lint bench docker-build docker-up verify
+.PHONY: install install-full api ui test lint validate bench docker-build docker-up verify
 
 install:            ## base env + dev/ui extras (enough for tests and the UI)
 	uv venv && uv pip install -e ".[dev,ui]"
@@ -17,6 +17,9 @@ test:               ## run the test suite
 
 lint:
 	uv run --extra dev ruff check .
+
+validate:           ## check Member A data deliverables against the contract
+	uv run python scripts/validate_data.py all
 
 bench:              ## benchmark a running API (start `make api` first)
 	uv run --extra ui python scripts/benchmark.py --url http://localhost:8000 --label local

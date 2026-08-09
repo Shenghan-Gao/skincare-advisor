@@ -37,11 +37,14 @@ def evaluate(model, loader, device):
     targs = np.concatenate(targs) if targs else np.zeros((0, len(CONCERNS)))
     preds = (probs > 0.5).astype(int)
 
+    # A concern is scored only where ground truth exists. Unlabelled entries arrive as
+    # NaN (from the CSV) or -1 (from SkinDataset); neither counts as a negative example.
     per_concern, coverage = {}, {}
     for j, name in enumerate(CONCERNS):
-        m = targs[:, j] >= 0
+        col = targs[:, j]
+        m = np.isfinite(col) & (col >= 0)
         coverage[name] = int(m.sum())
-        per_concern[name] = (f1_score(targs[m, j].astype(int), preds[m, j],
+        per_concern[name] = (f1_score(col[m].astype(int), preds[m, j],
                                       zero_division=0) if m.sum() else None)
     scored = [v for v in per_concern.values() if v is not None]
 

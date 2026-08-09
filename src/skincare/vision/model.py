@@ -64,17 +64,28 @@ def build_model(kind: str = "transfer", **kw) -> nn.Module:
 
 
 def multitask_loss(type_logits, concern_logits, y_type, y_concern, w: float = 1.0):
-    """Multi-task loss. Concerns use a masked BCE: -1 in ``y_concern`` marks an
-    unannotated label and is excluded from the loss.
+    """Multi-task loss. Skin type uses every sample; concerns use only annotated labels.
 
-    Why the mask is required: one source dataset may annotate acne but never
-    annotate wrinkles. If those blanks were folded in as zeros, the model would
-    learn "confirmed absent" from what is really "never labelled", and every
-    sparsely annotated concern would be biased toward the negative class.
+    Why the mask is required: one source dataset may annotate acne but never annotate
+    wrinkles. If those blanks were folded in as zeros, the model would learn "confirmed
+    absent" from what is really "never labelled", and every sparsely annotated concern
+    would be biased toward the negative class. In this dataset only ~5% of images carry
+    concern annotations, so an unmasked loss would be dominated by fabricated negatives.
+
+    An unlabelled entry may arrive either as NaN (straight from the CSV) or as the -1
+    sentinel produced by ``SkinDataset``. Both are handled here by selecting the valid
+    positions *before* computing BCE. Multiplying a mask onto an already-computed BCE
+    tensor does not work: NaN * 0 is NaN, so the loss would still be poisoned.
     """
     ce = nn.functional.cross_entropy(type_logits, y_type)
-    mask = (y_concern >= 0).float()
-    raw = nn.functional.binary_cross_entropy_with_logits(
-        concern_logits, y_concern.clamp_min(0), reduction="none")
-    bce = (raw * mask).sum() / mask.sum().clamp_min(1.0)
-    return ce + w * bce, ce.item(), bce.item()
+
+    valid = torch.isfinite(y_concern) & (y_concern >= 0)
+    if valid.any():
+        bce = nn.functional.binary_cross_entropy_with_logits(
+            concern_logits[valid], y_concern[valid])
+    else:
+        # No concern labels in this batch. Return a zero that is still connected to the
+        # graph so the concern head keeps receiving (zero) gradient and DDP stays happy.
+        bce = concern_logits.sum() * 0.0
+
+    return ce + w * bce, ce.item(), bce.detach().item()
