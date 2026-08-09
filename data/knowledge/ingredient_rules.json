@@ -1,86 +1,136 @@
 {
- "_owner": "TEAMMATE A -- 扩充本文件。注意:安全过滤用的是子串匹配,条目必须写成产品成分表里真实出现的形式(写 'salicylic acid',不要写 'salicylic acid high dose' —— 那样永远匹配不到)。每条规则请在 sources.md 注明出处。",
- "concern_to_ingredients": {
-  "acne": [
-   "salicylic acid",
-   "benzoyl peroxide",
-   "niacinamide",
-   "azelaic acid",
-   "adapalene",
-   "tea tree"
+  "_owner": "Member A. Cosmetic recommendation heuristics only; not a diagnosis or treatment protocol. Substring matching means entries should resemble real ingredient-list text. See sources.md.",
+  "concern_to_ingredients": {
+    "acne": [
+      "salicylic acid",
+      "benzoyl peroxide",
+      "niacinamide",
+      "azelaic acid",
+      "retinol",
+      "retinal",
+      "sulfur",
+      "glycolic acid",
+      "lactic acid",
+      "tea tree"
+    ],
+    "dark_spots": [
+      "niacinamide",
+      "ascorbic acid",
+      "vitamin c",
+      "azelaic acid",
+      "tranexamic acid",
+      "alpha arbutin",
+      "arbutin",
+      "kojic acid",
+      "retinol",
+      "retinal",
+      "licorice",
+      "acetyl glucosamine"
+    ],
+    "redness": [
+      "centella asiatica",
+      "niacinamide",
+      "azelaic acid",
+      "allantoin",
+      "panthenol",
+      "madecassoside",
+      "bisabolol",
+      "colloidal oatmeal",
+      "green tea",
+      "ceramide"
+    ],
+    "large_pores": [
+      "salicylic acid",
+      "niacinamide",
+      "retinol",
+      "retinal",
+      "glycolic acid",
+      "lactic acid",
+      "azelaic acid",
+      "kaolin",
+      "bentonite",
+      "clay"
+    ],
+    "wrinkles": [
+      "retinol",
+      "retinal",
+      "ascorbic acid",
+      "vitamin c",
+      "peptide",
+      "bakuchiol",
+      "hyaluronic acid",
+      "sodium hyaluronate",
+      "niacinamide",
+      "glycolic acid"
+    ],
+    "dryness": [
+      "glycerin",
+      "hyaluronic acid",
+      "sodium hyaluronate",
+      "ceramide",
+      "squalane",
+      "shea butter",
+      "urea",
+      "dimethicone",
+      "petrolatum",
+      "panthenol",
+      "lactic acid",
+      "jojoba"
+    ]
+  },
+  "pregnancy_unsafe": [
+    "retinol",
+    "retinoid",
+    "retinal",
+    "retinaldehyde",
+    "retinyl",
+    "tretinoin",
+    "tazarotene",
+    "adapalene",
+    "isotretinoin",
+    "hydroquinone"
   ],
-  "dark_spots": [
-   "niacinamide",
-   "vitamin c",
-   "azelaic acid",
-   "alpha arbutin",
-   "tranexamic acid",
-   "retinol"
+  "pregnancy_caution": [
+    "salicylic acid",
+    "benzoyl peroxide",
+    "essential oil"
   ],
-  "redness": [
-   "centella asiatica",
-   "niacinamide",
-   "azelaic acid",
-   "allantoin",
-   "panthenol",
-   "madecassoside"
+  "common_irritants": [
+    "alcohol denat",
+    "sd alcohol",
+    "camphor",
+    "fragrance",
+    "parfum",
+    "menthol",
+    "sodium lauryl sulfate",
+    "glycolic acid",
+    "lactic acid",
+    "essential oil"
   ],
-  "large_pores": [
-   "niacinamide",
-   "salicylic acid",
-   "retinol",
-   "clay"
+  "comedogenic": [
+    "coconut oil",
+    "isopropyl myristate",
+    "isopropyl palmitate",
+    "myristyl myristate",
+    "wheat germ oil",
+    "cocoa butter"
   ],
-  "wrinkles": [
-   "retinol",
-   "peptides",
-   "vitamin c",
-   "bakuchiol",
-   "hyaluronic acid"
-  ],
-  "dryness": [
-   "hyaluronic acid",
-   "ceramides",
-   "squalane",
-   "glycerin",
-   "shea butter",
-   "urea"
-  ]
- },
- "skin_type_to_avoid": {
-  "oily": [
-   "heavy oils",
-   "petrolatum",
-   "coconut oil"
-  ],
-  "dry": [
-   "denatured alcohol",
-   "sulfates",
-   "high concentration aha"
-  ],
-  "combination": [],
-  "normal": []
- },
- "pregnancy_unsafe": [
-  "retinol",
-  "retinoid",
-  "tretinoin",
-  "adapalene",
-  "retinal",
-  "retinyl",
-  "hydroquinone",
-  "salicylic acid"
- ],
- "common_irritants": [
-  "fragrance",
-  "parfum",
-  "denatured alcohol",
-  "essential oil",
-  "menthol"
- ],
- "comedogenic": [
-  "coconut oil",
-  "isopropyl myristate",
-  "wheat germ oil"
- ]
+  "skin_type_to_avoid": {
+    "oily": [
+      "coconut oil",
+      "isopropyl myristate",
+      "isopropyl palmitate",
+      "myristyl myristate",
+      "wheat germ oil"
+    ],
+    "dry": [
+      "alcohol denat",
+      "sd alcohol",
+      "sodium lauryl sulfate",
+      "menthol",
+      "camphor"
+    ],
+    "combination": [],
+    "normal": []
+  }
 }
