@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Installed by `make hooks`. Blocks a commit that would ship credentials.
+# Bypass only when you are certain:  git commit --no-verify
+exec "$(git rev-parse --show-toplevel)/scripts/check_secrets.sh" --staged

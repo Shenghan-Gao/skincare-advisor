@@ -67,7 +67,23 @@ case "${1:-run}" in
   stop)   need colab; colab stop -s "$SESSION"; echo "runtime stopped" ;;
   run)
     need colab
-    : "${OPENAI_API_KEY:?set OPENAI_API_KEY in your shell before running}"
+    # The key is deliberately NOT stored inside this repository. It lives in the
+    # macOS Keychain, or failing that in ~/.config/skincare-advisor/ -- both are
+    # outside the project directory, so anything with access to the repo folder
+    # (an agent, a sync client, a shared drive) cannot read it.
+    if [ -z "${OPENAI_API_KEY:-}" ] && command -v security >/dev/null 2>&1; then
+      OPENAI_API_KEY="$(security find-generic-password -a "$USER" -s skincare-openai -w 2>/dev/null || true)"
+      [ -n "$OPENAI_API_KEY" ] && export OPENAI_API_KEY && echo "loaded key from macOS Keychain"
+    fi
+    if [ -z "${OPENAI_API_KEY:-}" ] && [ -f "$HOME/.config/skincare-advisor/openai_key" ]; then
+      OPENAI_API_KEY="$(cat "$HOME/.config/skincare-advisor/openai_key")"
+      export OPENAI_API_KEY; echo "loaded key from ~/.config/skincare-advisor/"
+    fi
+    if [ -z "${OPENAI_API_KEY:-}" ]; then
+      echo "No OPENAI_API_KEY found. Store it once, outside this repo:"
+      echo "  make set-key"
+      exit 1
+    fi
 
     echo "==> creating runtime '$SESSION' on $GPU"
     colab sessions | grep -q "$SESSION" || colab new -s "$SESSION" --gpu "$GPU"

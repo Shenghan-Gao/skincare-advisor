@@ -1,4 +1,4 @@
-.PHONY: install install-full api ui test lint validate bench docker-build docker-up verify
+.PHONY: install install-full api ui test lint validate bench check-secrets hooks set-key docker-build docker-up verify
 
 install:            ## base env + dev/ui extras (enough for tests and the UI)
 	uv venv && uv pip install -e ".[dev,ui]"
@@ -12,7 +12,26 @@ api:                ## run FastAPI at :8000
 ui:                 ## run Streamlit at :8501
 	uv run --extra ui streamlit run ui/streamlit_app.py
 
-test:               ## run the test suite
+set-key:            ## store the OpenAI key outside this repo (Keychain, or ~/.config)
+	@printf 'OpenAI API key (input hidden): ' && read -rs K && echo && \
+	  if command -v security >/dev/null 2>&1; then \
+	    security add-generic-password -U -a "$$USER" -s skincare-openai -w "$$K" && \
+	    echo "stored in the macOS Keychain (not in this repository)"; \
+	  else \
+	    mkdir -p $$HOME/.config/skincare-advisor && \
+	    printf '%s' "$$K" > $$HOME/.config/skincare-advisor/openai_key && \
+	    chmod 600 $$HOME/.config/skincare-advisor/openai_key && \
+	    echo "stored in ~/.config/skincare-advisor/ (not in this repository)"; \
+	  fi
+
+check-secrets:      ## scan staged changes for API keys and tokens
+	./scripts/check_secrets.sh --staged
+
+hooks:              ## install the pre-commit secret scan (run once per clone)
+	git config core.hooksPath .githooks && echo "pre-commit hook installed"
+
+test:               ## run the test suite (secret scan first)
+	./scripts/check_secrets.sh --worktree
 	uv run --extra dev pytest -q
 
 lint:
