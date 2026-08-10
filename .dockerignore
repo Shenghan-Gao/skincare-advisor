@@ -1,0 +1,33 @@
+# Docker sends the whole build context to the daemon before the first line of the
+# Dockerfile runs, and it does NOT read .gitignore. Without this file the context
+# includes .venv (torch alone is a couple of GB), the 4,093 raw training images,
+# the FAISS index and the checkpoints -- several GB shipped on every build, for
+# files the image never copies.
+
+.git
+.gitignore
+.venv
+venv
+__pycache__
+**/__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# Data: only data/knowledge is COPYed by the Dockerfile. Everything else is
+# either raw input or a build artefact, and docker-compose mounts what the
+# container actually needs at run time (../models, ../data/processed) read-only.
+data/raw
+data/processed
+models
+reports
+notebooks
+
+# Local scratch that must never reach an image layer
+.env
+*.zip
+*.tar.gz
+.DS_Store
+**/.DS_Store
+COMMIT_MSG.tmp
