@@ -84,7 +84,12 @@ def build_rows(n: int, mock: bool, top_k: int = 3) -> list[dict]:
             # ---- reward context; rewards.py reads these during GRPO ----
             "concerns": active,
             "evidence_ids": [e["evidence_id"] for e in ev],
-            "product_ids": [p.product_id for p in res.products],
+            # Every product the model can actually see, not just the top-k summary
+            # rows. SYSTEM says "Recommend products ONLY from the evidence", and the
+            # evidence block shown to the model spans more products than res.products
+            # does -- scoring against the narrower list punished the model for obeying
+            # the instruction it was given.
+            "product_ids": list(dict.fromkeys(e["product_id"] for e in ev)),
             "pregnant": profile["pregnant"],
             "avoid": profile["avoid_ingredients"],
         })
@@ -94,6 +99,30 @@ def build_rows(n: int, mock: bool, top_k: int = 3) -> list[dict]:
 # ---------------------------------------------------- teacher distillation ---
 def _key(prompt: str) -> str:
     return hashlib.sha1(prompt.encode()).hexdigest()[:16]
+
+
+def cache_path_for(outdir: Path, model: str, dry: bool) -> Path:
+    """One cache file per (SYSTEM prompt, teacher model).
+
+    The per-row key is a hash of the *user* prompt only, so a cache shared across
+    SYSTEM revisions would happily serve completions produced by the old SYSTEM --
+    you would tune the prompt to lift the pass rate, rerun, and see the identical
+    number, with nothing in the output saying why. Putting the fingerprint in the
+    filename makes a SYSTEM or model change start a fresh cache instead.
+
+    A legacy sft.cache.jsonl is adopted under the current fingerprint on first use,
+    so the calls already paid for are not paid for twice. That adoption happens only
+    while no fingerprinted cache exists yet -- otherwise the very first SYSTEM edit
+    would reseed the new cache from the old completions, which is the bug this
+    function exists to prevent.
+    """
+    fp = hashlib.sha1(f"{SYSTEM}\x00{'dry' if dry else model}".encode()).hexdigest()[:8]
+    path = outdir / f"sft.cache.{fp}.jsonl"
+    legacy = outdir / "sft.cache.jsonl"
+    if not path.exists() and legacy.exists() and not any(outdir.glob("sft.cache.*.jsonl")):
+        path.write_text(legacy.read_text())
+        print(f"  adopted legacy cache ({sum(1 for _ in open(legacy))} rows) -> {path.name}")
+    return path
 
 
 def teacher_answer(row: dict, client, model: str, retries: int = 2,
@@ -151,8 +180,11 @@ DIAGNOSIS = {
     "grounding": "The teacher is not citing the evidence_id values it was given —— state the "
                  "'you must cite evidence_id' rule more forcefully in the prompt, or show the "
                  "citation format in an example",
-    "product_validity": "The teacher is inventing products —— stress that it may only choose "
-                        "product_id values that appear in the evidence",
+    "product_validity": "Recommended product_ids are outside the allowed set —— before "
+                        "blaming the teacher, check that row['product_ids'] covers every "
+                        "product shown in the evidence block; a narrower list penalises the "
+                        "model for obeying the prompt. Only if grounding is also low is the "
+                        "teacher genuinely inventing products",
     "safety": "Missing disclaimer, or a contraindicated ingredient was recommended —— check "
               "the disclaimer requirements in SYSTEM",
 }
@@ -319,7 +351,8 @@ def main():
         print(f"[SFT data] teacher={'offline fake teacher' if args.dry_teacher else args.model}"
               f", filter threshold={args.threshold}")
         kept = distil(train_rows, args.model, args.threshold,
-                      out / "sft.cache.jsonl", args.dry_teacher, args.inspect)
+                      cache_path_for(out, args.model, args.dry_teacher),
+                      args.dry_teacher, args.inspect)
         write_jsonl(kept, out / "sft.jsonl")
 
     print("\nNext steps:")
