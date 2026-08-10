@@ -59,6 +59,9 @@ def main():
                     help="how many candidate completions to sample per prompt")
     ap.add_argument("--accum", type=int, default=4)
     ap.add_argument("--max-completion-length", type=int, default=512)
+    ap.add_argument("--save-steps", type=int, default=25)
+    ap.add_argument("--resume", action="store_true",
+                    help="continue from the newest checkpoint in --out")
     args = ap.parse_args()
 
     from pathlib import Path as _P
@@ -88,8 +91,26 @@ def main():
         print(f"no adapter found at {args.adapter}; starting from the raw base model "
               f"-- RL will be much harder to converge")
 
+    # The five scorers are passed to TRL as separate reward functions, and TRL
+    # weights them 1.0 each unless told otherwise. That silently replaces the
+    # designed objective with a uniform one: ingredient_match would count 0.20
+    # instead of 0.30, while format / product_validity / safety -- already at or
+    # near 1.0 after SFT, so contributing no gradient -- would each count more
+    # than designed. It also puts RL out of step with the distillation filter,
+    # which selected SFT data using these same weights via total_reward().
+    reward_funcs = [
+        ("format", R.format_reward),
+        ("ingredient_match", R.ingredient_match_reward),
+        ("grounding", R.grounding_reward),
+        ("product_validity", R.product_validity_reward),
+        ("safety", R.safety_reward),
+    ]
+    reward_weights = [R.WEIGHTS[name] for name, _ in reward_funcs]
+    print("reward weights:", dict(zip([n for n, _ in reward_funcs], reward_weights)))
+
     cfg = GRPOConfig(
         output_dir=args.out,
+        reward_weights=reward_weights,
         max_steps=args.steps,
         num_generations=args.group_size,     # the "group" in GRPO
         per_device_train_batch_size=args.group_size,
@@ -99,7 +120,9 @@ def main():
         beta=0.04,                           # KL penalty -> stops reward hacking
         temperature=0.9,
         logging_steps=5,
-        save_steps=50,
+        save_strategy="steps",
+        save_steps=args.save_steps,
+        save_total_limit=2,
         bf16=_BF16,
         fp16=_FP16,                       # fp16 on a T4; without it we fall back to fp32 and OOM
         report_to="none",
@@ -109,15 +132,12 @@ def main():
         args=cfg,
         train_dataset=ds,
         peft_config=peft_config,
-        reward_funcs=[
-            _make_reward_fn(R.format_reward),
-            _make_reward_fn(R.ingredient_match_reward),
-            _make_reward_fn(R.grounding_reward),
-            _make_reward_fn(R.product_validity_reward),
-            _make_reward_fn(R.safety_reward),
-        ],
+        reward_funcs=[_make_reward_fn(fn) for _, fn in reward_funcs],
     )
-    trainer.train()
+    resume = bool(args.resume and list(_P(args.out).glob("checkpoint-*")))
+    if resume:
+        print(f"resuming from the newest checkpoint under {args.out}")
+    trainer.train(resume_from_checkpoint=resume or None)
     trainer.save_model(args.out)
     print("saved GRPO adapter ->", args.out)
 
