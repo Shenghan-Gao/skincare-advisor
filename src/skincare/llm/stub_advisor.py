@@ -41,7 +41,14 @@ class StubAdvisor:
         rules = load_rules()["concern_to_ingredients"]
         ings = " ".join(ingredients).lower()
         hit = [c for c, needles in rules.items() if any(n.lower() in ings for n in needles)]
-        return [c for c in hit if c in wanted] or hit[:1]
+        matched = [c for c in hit if c in wanted]
+        if wanted:
+            # Never claim a concern the user did not report. The previous fallback returned
+            # hit[:1] whenever nothing intersected, so a self-tanner whose formula happens to
+            # contain ascorbic acid was presented as "matches dark_spots" -- a concern scored
+            # 0.2 and never asked about. An empty list is the honest answer there.
+            return matched
+        return hit[:1]
 
     def recommend(self, profile: UserProfile, analysis: SkinAnalysis | None,
                   retrieval: RetrievalResult) -> AdvisorResponse:

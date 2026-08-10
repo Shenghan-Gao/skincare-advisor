@@ -40,9 +40,21 @@ def _dedupe_flags(flags: list[str]) -> list[str]:
     return list(dict.fromkeys(flag for flag in flags if flag))
 
 
+def _normalise(text: str) -> str:
+    """Collapse INCI punctuation so substring rules still fire.
+
+    Catalog entries are raw INCI strings: "cocos nucifera (coconut) oil",
+    "alcohol denat. (sd alcohol 40-b)", "tocopheryl acetate (vitamin e acetate)".
+    A plain substring test for "coconut oil" misses the first one because of the
+    bracket, so a comedogenic ingredient reached an acne-prone user with no flag.
+    """
+    return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
+
+
 def _contains_any(ingredient_text: str, needles: list[str]) -> list[str]:
-    text = ingredient_text.lower()
-    return [needle for needle in needles if needle and needle.lower() in text]
+    text = _normalise(ingredient_text)
+    return [needle for needle in needles
+            if needle and _normalise(needle) in text]
 
 
 def apply_safety(resp: AdvisorResponse, profile: UserProfile) -> AdvisorResponse:

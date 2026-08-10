@@ -41,3 +41,5 @@ dist/
 reports/*.ipynb
 .env_key
 *.key
+
+COMMIT_MSG.tmp

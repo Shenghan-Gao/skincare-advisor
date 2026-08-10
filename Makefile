@@ -7,7 +7,7 @@ install-full:       ## everything incl. torch / rag / llm (needed for training)
 	uv pip install -e ".[vision,rag,llm,ui,dev]"
 
 api:                ## run FastAPI at :8000
-	uv run uvicorn app.main:app --reload --port 8000
+	uv run --extra vision --extra rag uvicorn app.main:app --reload --port 8000
 
 ui:                 ## run Streamlit at :8501
 	uv run --extra ui streamlit run ui/streamlit_app.py
