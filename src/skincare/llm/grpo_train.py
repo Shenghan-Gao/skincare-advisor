@@ -59,6 +59,11 @@ def main():
                     help="how many candidate completions to sample per prompt")
     ap.add_argument("--accum", type=int, default=4)
     ap.add_argument("--max-completion-length", type=int, default=512)
+    ap.add_argument("--lr", type=float, default=1e-6,
+                    help="1e-6 suits full fine-tuning of a large policy. LoRA on a 1.5B "
+                         "model over a short run needs one to two orders of magnitude more, "
+                         "or the KL barely moves off the reference and the reward curve stays "
+                         "flat for reasons that have nothing to do with the reward design.")
     ap.add_argument("--save-steps", type=int, default=25)
     ap.add_argument("--resume", action="store_true",
                     help="continue from the newest checkpoint in --out")
@@ -115,7 +120,8 @@ def main():
         num_generations=args.group_size,     # the "group" in GRPO
         per_device_train_batch_size=args.group_size,
         gradient_accumulation_steps=args.accum,
-        learning_rate=1e-6,                  # RL wants a much smaller LR than SFT
+        learning_rate=args.lr,               # see --lr: smaller than SFT, but not so small
+                                             # that the policy never leaves the reference
         max_completion_length=args.max_completion_length,
         beta=0.04,                           # KL penalty -> stops reward hacking
         temperature=0.9,
