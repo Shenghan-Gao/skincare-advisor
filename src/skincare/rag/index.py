@@ -2,6 +2,8 @@
 
     python -m skincare.rag.index
 """
+from functools import lru_cache
+
 import numpy as np
 import pandas as pd
 from skincare.config import PROCESSED
@@ -9,10 +11,22 @@ from skincare.config import PROCESSED
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 
-def embed_texts(texts: list[str], model_name: str = EMBED_MODEL) -> np.ndarray:
+@lru_cache(maxsize=2)
+def get_encoder(model_name: str = EMBED_MODEL):
+    """One encoder per process. Without the cache every retrieval call reloaded the
+    weights from disk -- roughly a second each, paid once per user request at serve
+    time and once per sample when building the SFT set."""
     from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer(model_name)
-    return model.encode(texts, batch_size=64, show_progress_bar=True,
+    return SentenceTransformer(model_name)
+
+
+def embed_texts(texts: list[str], model_name: str = EMBED_MODEL,
+                show_progress: bool | None = None) -> np.ndarray:
+    """show_progress defaults to on only for bulk work; a single query stays quiet."""
+    if show_progress is None:
+        show_progress = len(texts) > 256
+    model = get_encoder(model_name)
+    return model.encode(texts, batch_size=64, show_progress_bar=show_progress,
                         normalize_embeddings=True).astype("float32")
 
 
