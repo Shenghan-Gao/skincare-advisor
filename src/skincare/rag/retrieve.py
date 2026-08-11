@@ -21,12 +21,32 @@ def load_rules() -> dict:
         return json.load(f)
 
 
+MAX_QUERY_CONCERNS = 3
+
+
+def query_concerns(analysis: SkinAnalysis, max_n: int = MAX_QUERY_CONCERNS) -> list[str]:
+    """The concerns worth putting in the retrieval query: above threshold, strongest first,
+    capped.
+
+    SkinAnalysis.top_concerns() returns everything over 0.5 with no limit. That is fine for
+    the synthetic profiles used to build the training set, which never activate more than
+    three. The real CNN's concern head leans towards predicting positive, and a single photo
+    has produced all six above 0.90 -- which expands here into six concern names plus
+    eighteen ingredient terms, burying the user's own words in boilerplate that is identical
+    for every such photo. Cap the query at the strongest few; the full scores are untouched
+    and still reach the prompt and the safety guard.
+    """
+    scored = [c for c in analysis.concerns if c.score >= 0.5]
+    scored.sort(key=lambda c: c.score, reverse=True)
+    return [c.concern for c in scored[:max_n]]
+
+
 def build_query(profile: UserProfile, analysis: SkinAnalysis | None) -> str:
     parts = [profile.query]
     rules = load_rules()
     if analysis:
         parts.append(f"skin type {analysis.skin_type.value}")
-        for concern in analysis.top_concerns():
+        for concern in query_concerns(analysis):
             parts.append(concern.replace("_", " "))
             parts += rules["concern_to_ingredients"].get(concern, [])[:3]
     if profile.preferences:
