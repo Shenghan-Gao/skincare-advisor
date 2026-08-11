@@ -73,6 +73,8 @@ def main():
                     help="defaults to every variant available in the manifest")
     ap.add_argument("--limit", type=int, default=100)
     ap.add_argument("--out", default="reports/llm_eval.json")
+    ap.add_argument("--fresh", action="store_true",
+                    help="ignore any variant already scored in --out and redo everything")
     args = ap.parse_args()
 
     if args.self_test:
@@ -82,24 +84,39 @@ def main():
 
     rows = [json.loads(l) for l in open(args.split)][: args.limit]
     variants = args.variants or available_variants()
-    print(f"evaluating {len(rows)} rows; variants: {variants}\n")
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
 
+    # Each variant costs a full model load plus one generation per row, so a run that
+    # only writes at the end loses every completed variant when the session drops.
+    # Persist after each one and skip what is already scored.
     results = {}
-    for v in variants:
+    if out.exists() and not args.fresh:
+        results = json.load(open(out))
+        done = [v for v in variants if v in results]
+        if done:
+            print(f"resuming: {', '.join(done)} already scored in {out}")
+
+    def flush():
+        json.dump(results, open(out, "w"), indent=2)
+        out.with_suffix(".md").write_text(markdown_table(results) + "\n")
+
+    todo = [v for v in variants if v not in results]
+    print(f"evaluating {len(rows)} rows; variants to run: {todo or '(none -- all cached)'}\n")
+
+    for v in todo:
         try:
             gen = fixture_generator() if v == "fixture" else get_generator(v)
         except Exception as e:
             print(f"  skipping {v}: {e}")
             continue
         results[v] = score_rows(gen, rows)
-        print(f"  {v:8s} total={results[v]['total']:.3f}")
+        flush()
+        print(f"  {v:8s} total={results[v]['total']:.3f}   (saved)")
 
-    table = markdown_table(results)
-    print("\n" + table)
-    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-    json.dump(results, open(args.out, "w"), indent=2)
-    Path(args.out).with_suffix(".md").write_text(table + "\n")
-    print(f"\nsaved {args.out} and the matching .md")
+    flush()
+    print("\n" + markdown_table({v: results[v] for v in variants if v in results}))
+    print(f"\nsaved {out} and the matching .md")
 
 
 if __name__ == "__main__":
