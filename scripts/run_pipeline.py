@@ -36,6 +36,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -109,6 +110,72 @@ def purge(*pairs):
             if p.exists():
                 shutil.rmtree(p, ignore_errors=True) if p.is_dir() else p.unlink()
                 log(f"purged {p}")
+
+
+MIRROR_SECONDS = int(os.environ.get("MIRROR_SECONDS", "90"))
+_mirror_stop = threading.Event()
+
+
+def _settled(path: Path, quiet_for: float = 60.0) -> bool:
+    """True once nothing under path has been written for a while.
+
+    The trainers write a checkpoint directory in place, so copying the newest one
+    while it is still being flushed puts a truncated safetensors file on Drive --
+    and --resume picks the newest, so that corrupt copy is exactly the one a
+    recovering run would load. Waiting for the directory to go quiet costs one
+    mirror cycle and removes the failure mode.
+    """
+    newest = max((f.stat().st_mtime for f in path.rglob("*") if f.is_file()), default=0)
+    return time.time() - newest > quiet_for
+
+
+def mirror():
+    """Copy finished checkpoints and any evaluation output to Drive, mid-stage.
+
+    Stage-level backup() alone is not enough: GRPO is an hour long, and a runtime
+    reclaimed at minute 40 used to lose all of it. This runs on a timer so the
+    worst case is one mirror interval, not one stage.
+    """
+    for name in ("sft-lora", "grpo"):
+        src = MODEL_SRC / name
+        if not src.exists():
+            continue
+        dst = MODEL_DST / name
+        dst.mkdir(parents=True, exist_ok=True)
+        for item in src.iterdir():
+            if item.is_dir() and item.name.startswith("checkpoint-") and not _settled(item):
+                continue
+            try:
+                if item.is_dir():
+                    shutil.copytree(item, dst / item.name, dirs_exist_ok=True)
+                else:
+                    shutil.copy(item, dst / item.name)
+            except Exception as e:
+                log(f"mirror: skipped {item.name} ({type(e).__name__})")
+    if REPORT_SRC.exists():
+        REPORT_DST.mkdir(parents=True, exist_ok=True)
+        for f in REPORT_SRC.glob("llm_eval.*"):
+            try:
+                shutil.copy(f, REPORT_DST / f.name)
+            except Exception:
+                pass
+        if (REPORT_SRC / ".eval_cache").exists():
+            try:
+                shutil.copytree(REPORT_SRC / ".eval_cache", REPORT_DST / "eval_cache",
+                                dirs_exist_ok=True)
+            except Exception:
+                pass
+
+
+def start_mirror():
+    def loop():
+        while not _mirror_stop.wait(MIRROR_SECONDS):
+            try:
+                mirror()
+            except Exception as e:
+                log(f"mirror failed: {type(e).__name__}: {e}")
+    threading.Thread(target=loop, daemon=True).start()
+    log(f"mirroring to Drive every {MIRROR_SECONDS}s")
 
 
 def backup():
@@ -210,6 +277,7 @@ def stage_setup():
     for f in ("products.parquet", "chunks.parquet"):
         if not (SRC / f).exists():
             raise SystemExit(f"missing {f}; upload it to Drive/skincare_data first")
+    start_mirror()
 
 
 def stage_index():
@@ -330,6 +398,8 @@ def main():
             status(name, "failed", error=f"{type(e).__name__}: {e}")
             Path("/content/PIPELINE_FAILED").write_text(f"{name}: {e}")
             raise
+    _mirror_stop.set()
+    mirror()
     Path("/content/PIPELINE_DONE").write_text("ok")
     log("PIPELINE COMPLETE")
     status("pipeline", "complete")
