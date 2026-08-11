@@ -62,11 +62,20 @@ def get_generator(variant: str):
 
     def gen(prompt: str) -> str:
         msgs = [{"role": "user", "content": prompt}]
-        ids = tok.apply_chat_template(msgs, return_tensors="pt",
-                                      add_generation_prompt=True).to(model.device)
+        enc = tok.apply_chat_template(msgs, return_tensors="pt",
+                                      add_generation_prompt=True)
+        # transformers changed this return type: older versions hand back a bare
+        # tensor, newer ones a BatchEncoding. Passing the mapping straight into
+        # generate() as a positional arg fails on .shape, so normalise here rather
+        # than pinning a version.
+        enc = {"input_ids": enc} if isinstance(enc, torch.Tensor) else dict(enc)
+        enc = {k: v.to(model.device) for k, v in enc.items() if hasattr(v, "to")}
+        n_in = enc["input_ids"].shape[1]
         with torch.no_grad():
-            out = model.generate(ids, max_new_tokens=512, do_sample=False)
-        return tok.decode(out[0][ids.shape[1]:], skip_special_tokens=True)
+            # Same budget the policy was trained under, so eval and training agree.
+            out = model.generate(**enc, max_new_tokens=384, do_sample=False,
+                                 pad_token_id=tok.pad_token_id or tok.eos_token_id)
+        return tok.decode(out[0][n_in:], skip_special_tokens=True)
     return gen
 
 
