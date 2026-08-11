@@ -8,6 +8,7 @@ import pandas as pd
 import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
+
 from skincare.config import CONCERNS, IMAGE_SIZE, SKIN_TYPES
 
 
