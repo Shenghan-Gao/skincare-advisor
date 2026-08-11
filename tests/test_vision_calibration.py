@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 import torch
 
+from scripts.calibrate_vision_concerns import ensure_validation_split
 from skincare.config import CONCERNS
 from skincare.vision.calibration import (
     bootstrap_concern_macro_f1,
@@ -55,3 +56,9 @@ def test_threshold_logit_shift_preserves_shape_and_maps_cutoff_to_half():
 
     assert shifted.shape == logits.shape
     assert torch.sigmoid(shifted).tolist()[0] == pytest.approx([0.5] * len(CONCERNS))
+
+
+def test_threshold_search_rejects_test_split():
+    ensure_validation_split("data/processed/vision_val.csv")
+    with pytest.raises(ValueError, match="never the one-shot test"):
+        ensure_validation_split("data/processed/vision_test.csv")

@@ -28,6 +28,14 @@ def choose_device(requested):
     return "cpu"
 
 
+def ensure_validation_split(path):
+    """Protect the one-shot test set from accidental threshold optimisation."""
+    if "test" in Path(path).stem.lower():
+        raise ValueError(
+            "threshold search must use validation data, never the one-shot test split"
+        )
+
+
 @torch.no_grad()
 def predict(model, loader, device):
     targets, probabilities = [], []
@@ -49,6 +57,7 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", default="auto")
     args = parser.parse_args()
+    ensure_validation_split(args.val_csv)
 
     checkpoint_path = Path(args.checkpoint)
     output_checkpoint = Path(args.output_checkpoint or checkpoint_path.with_name(
@@ -78,6 +87,15 @@ def main():
     report = {
         "source_checkpoint": str(checkpoint_path),
         "validation_csv": args.val_csv,
+        "evaluation_role": "validation_threshold_tuning_on_same_samples",
+        "selection_bias_warning": (
+            "Thresholds and macro-F1 are optimized on the same labelled validation "
+            "rows, so this score is optimistic and is not the final generalization metric."
+        ),
+        "final_reporting_policy": (
+            "Freeze these thresholds, select the final model, then evaluate exactly once "
+            "on the held-out test split without any further threshold search."
+        ),
         "threshold_search": {
             "grid_min": 0.05, "grid_max": 0.95, "grid_step": 0.01,
             "tie_break": "closest_to_0.5_then_lower",

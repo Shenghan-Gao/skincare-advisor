@@ -108,6 +108,10 @@ def bootstrap_concern_macro_f1(
         "seed": seed,
         "resampled_labelled_rows": len(valid_rows),
         "thresholds_fixed_during_bootstrap": True,
+        "uncertainty_scope": (
+            "row-sampling uncertainty conditional on fixed thresholds; "
+            "does not include threshold-selection bias"
+        ),
     }
 
 

@@ -191,7 +191,7 @@ def baseline_rows(type_true, concern_true):
     ]
 
 
-def plot_comparison(rows, baselines, output: Path):
+def plot_comparison(rows, baselines, output: Path, split_name: str):
     labels = [row["run_name"] for row in rows]
     x = np.arange(len(labels))
     width = 0.25
@@ -217,7 +217,7 @@ def plot_comparison(rows, baselines, output: Path):
     )
     ax.set_ylim(0, 0.82)
     ax.set_ylabel("Score")
-    ax.set_title("Vision checkpoint comparison on validation set")
+    ax.set_title(f"Vision checkpoint comparison on {split_name} set")
     ax.set_xticks(x, labels, rotation=15, ha="right")
     ax.grid(axis="y", alpha=0.25)
     ax.legend(loc="upper left", ncol=3)
@@ -245,6 +245,7 @@ def main():
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--bootstrap-samples", type=int, default=1000)
     parser.add_argument("--bootstrap-seed", type=int, default=42)
+    parser.add_argument("--split-name", choices=["validation", "test"], default="validation")
     parser.add_argument("--device", default="auto")
     args = parser.parse_args()
 
@@ -293,6 +294,7 @@ def main():
         row = {
             "run_name": run_name,
             "row_type": "model",
+            "evaluation_split": args.split_name,
             "kind": checkpoint.get("kind", "transfer"),
             "backbone": checkpoint.get("config", {}).get("backbone"),
             "learning_rate": checkpoint.get("config", {}).get("lr"),
@@ -330,6 +332,19 @@ def main():
             output / f"{run_name}_per_class_f1.png",
         )
 
+    for row in baselines:
+        row["evaluation_split"] = args.split_name
+    full_report["_evaluation"] = {
+        "split_name": args.split_name,
+        "csv": args.val_csv,
+        "threshold_search_performed": False,
+        "threshold_source": "checkpoint concern_thresholds or 0.5 fallback",
+        "interpretation": (
+            "final held-out estimate with frozen thresholds"
+            if args.split_name == "test"
+            else "development-set estimate; calibrated checkpoints may be optimistic"
+        ),
+    }
     full_report["_baselines"] = {row["run_name"]: row for row in baselines}
     with (output / "vision_evaluation.json").open("w") as handle:
         json.dump(full_report, handle, indent=2)
@@ -337,7 +352,9 @@ def main():
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(baselines + rows)
-    plot_comparison(rows, baselines, output / "vision_model_comparison.png")
+    plot_comparison(
+        rows, baselines, output / "vision_model_comparison.png", args.split_name
+    )
     print(f"saved evaluation artifacts to {output}")
 
 
