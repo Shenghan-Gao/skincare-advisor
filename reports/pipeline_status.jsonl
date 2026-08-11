@@ -1,0 +1,19 @@
+{"stage": "setup", "state": "start", "elapsed_s": 0.0}
+{"stage": "setup", "state": "failed", "elapsed_s": 120.5, "error": "command failed (128): git clone -q https://github.com/Shenghan-Gao/skincare-advisor.git /content/skincare"}
+{"stage": "setup", "state": "start", "elapsed_s": 0.0}
+{"stage": "setup", "state": "failed", "elapsed_s": 0.3, "error": "command failed (128): git clone -q https://github.com/Shenghan-Gao/skincare-advisor.git /content/skincare"}
+{"stage": "setup", "state": "start", "elapsed_s": 0.0}
+{"stage": "setup", "state": "failed", "elapsed_s": 0.3, "error": "git clone failed (exit 128). Check the runtime has network access and that https://github.com/Shenghan-Gao/skincare-advisor.git is reachable anonymously."}
+{"stage": "setup", "state": "start", "elapsed_s": 0.0, "force": ["eval", "grpo", "sft"]}
+{"stage": "grpo", "state": "done", "elapsed_s": 4796.8}
+{"stage": "manifest", "state": "done", "elapsed_s": 4797.6, "manifest": {"base": "Qwen/Qwen2.5-1.5B-Instruct", "sft": "/content/drive/MyDrive/skincare_models/sft-lora", "grpo": "/content/drive/MyDrive/skincare_models/grpo"}}
+{"stage": "eval", "state": "start", "elapsed_s": 4798.0, "variants": ["base", "sft", "grpo"], "limit": 119}
+{"stage": "setup", "state": "start", "elapsed_s": 0.0, "force": null}
+{"stage": "eval", "state": "failed", "elapsed_s": 1193.5, "error": "evaluation is missing ['sft', 'grpo']; the cache keeps the rest"}
+{"stage": "setup", "state": "start", "elapsed_s": 0.0, "force": null}
+{"stage": "setup", "state": "done", "elapsed_s": 148.4, "gpu": true, "device": "NVIDIA L4"}
+{"stage": "manifest", "state": "done", "elapsed_s": 148.4, "manifest": {"base": "Qwen/Qwen2.5-1.5B-Instruct", "sft": "/content/drive/MyDrive/skincare_models/sft-lora", "grpo": "/content/drive/MyDrive/skincare_models/grpo"}}
+{"stage": "eval", "state": "start", "elapsed_s": 148.4, "variants": ["base", "sft", "grpo"], "limit": 119}
+{"stage": "setup", "state": "start", "elapsed_s": 0.0, "force": null}
+{"stage": "eval", "state": "done", "elapsed_s": 1411.6, "totals": {"base": 0.0953, "sft": 0.7359, "grpo": 0.7454}}
+{"stage": "pipeline", "state": "complete", "elapsed_s": 1418.7}

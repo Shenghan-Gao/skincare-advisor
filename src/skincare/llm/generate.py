@@ -32,12 +32,24 @@ class Advisor:
         from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
         base = os.getenv("LLM_BASE_MODEL", "Qwen/Qwen2.5-1.5B-Instruct")
         tok = AutoTokenizer.from_pretrained(base)
-        model = AutoModelForCausalLM.from_pretrained(base, torch_dtype=torch.bfloat16,
-                                                     device_map="auto")
+        # Explicit device and dtype. bfloat16 + device_map="auto" is right on the
+        # training GPU and fails on Apple Silicon: MPS has no bf16, and "auto" needs
+        # accelerate, which lives in the llm extra that cannot install on macOS.
+        if torch.cuda.is_available():
+            device, dtype = "cuda", torch.bfloat16
+        elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+            device, dtype = "mps", torch.float16
+        else:
+            device, dtype = "cpu", torch.float32
+        print(f"[advisor] loading {base}"
+              f"{' + ' + self.adapter if self.adapter else ''} on {device} ({dtype})",
+              flush=True)
+        model = AutoModelForCausalLM.from_pretrained(base, torch_dtype=dtype)
         if self.adapter:
             from peft import PeftModel
             model = PeftModel.from_pretrained(model, self.adapter)
-        return pipeline("text-generation", model=model, tokenizer=tok)
+        model = model.to(device).eval()
+        return pipeline("text-generation", model=model, tokenizer=tok, device=device)
 
     def recommend(self, profile: UserProfile, analysis: SkinAnalysis | None,
                   retrieval: RetrievalResult) -> AdvisorResponse:

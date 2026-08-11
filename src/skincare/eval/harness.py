@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 
 from skincare.config import MODELS
+from skincare.llm.prompts import SYSTEM
 
 MANIFEST = MODELS / "llm" / "manifest.json"
 
@@ -61,7 +62,11 @@ def get_generator(variant: str):
     model.eval()
 
     def gen(prompt: str) -> str:
-        msgs = [{"role": "user", "content": prompt}]
+        # SYSTEM carries the JSON schema and "Always include a disclaimer", and
+        # generate.py puts it in front of every served request. Evaluating without
+        # it measured a configuration nobody deploys. See report section 7.4.
+        msgs = [{"role": "system", "content": SYSTEM},
+                {"role": "user", "content": prompt}]
         enc = tok.apply_chat_template(msgs, return_tensors="pt",
                                       add_generation_prompt=True)
         # transformers changed this return type: older versions hand back a bare
@@ -72,8 +77,9 @@ def get_generator(variant: str):
         enc = {k: v.to(model.device) for k, v in enc.items() if hasattr(v, "to")}
         n_in = enc["input_ids"].shape[1]
         with torch.no_grad():
-            # Same budget the policy was trained under, so eval and training agree.
-            out = model.generate(**enc, max_new_tokens=384, do_sample=False,
+            # 512, matching generate.py. With the system turn restored the full
+            # object no longer fits in 384: the first held-out row needs 388 tokens.
+            out = model.generate(**enc, max_new_tokens=512, do_sample=False,
                                  pad_token_id=tok.pad_token_id or tok.eos_token_id)
         return tok.decode(out[0][n_in:], skip_special_tokens=True)
     return gen
