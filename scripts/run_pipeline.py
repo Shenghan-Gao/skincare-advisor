@@ -217,6 +217,13 @@ def restore():
         if (MODEL_DST / name).exists():
             MODEL_SRC.mkdir(parents=True, exist_ok=True)
             shutil.copytree(MODEL_DST / name, MODEL_SRC / name, dirs_exist_ok=True); n += 1
+    # manifest.json lives under models/, which is gitignored, so a fresh clone has
+    # none and load_manifest() falls back to base only. Without this the eval stage
+    # silently drops sft and grpo -- it burned twenty minutes scoring base before
+    # reporting the variants as missing.
+    if (MODEL_DST / "manifest.json").exists():
+        MODEL_SRC.mkdir(parents=True, exist_ok=True)
+        shutil.copy(MODEL_DST / "manifest.json", MODEL_SRC / "manifest.json"); n += 1
     if REPORT_DST.exists() and "eval" not in FORCE:
         REPORT_SRC.mkdir(parents=True, exist_ok=True)
         for f in REPORT_DST.glob("llm_eval.*"):
@@ -363,6 +370,19 @@ def stage_eval():
     elif out.exists() and all(v in json.loads(out.read_text()) for v in wanted):
         status("eval", "skipped", reason="all variants already scored")
         return
+    # Publish the manifest first: the evaluator resolves variant names through it, and
+    # running eval without the manifest stage is an easy and expensive mistake.
+    stage_manifest()
+    manifest = json.loads((MODEL_SRC / "manifest.json").read_text())
+    for v in wanted:
+        if v == "base":
+            continue
+        target = manifest.get(v)
+        if not target or not list(Path(target).glob("adapter*")):
+            raise SystemExit(
+                f"variant '{v}' resolves to {target!r}, which holds no adapter. "
+                f"Run the {v} stage first -- refusing to spend a generation pass "
+                f"only to report it missing at the end.")
     status("eval", "start", variants=wanted, limit=EVAL_LIMIT)
     sh(f"python -m skincare.eval.run_eval --split data/processed/rl_test.jsonl "
        f"--variants {EVAL_VARIANTS} --limit {EVAL_LIMIT} --out reports/llm_eval.json")
