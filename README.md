@@ -1,5 +1,30 @@
 # AI Skincare Advisor
 
+## Quickstart
+
+Two commands, on a clean clone, with nothing else installed:
+
+```bash
+docker compose up --build
+curl localhost:8000/health
+```
+
+Then open <http://localhost:8000/docs> for the interactive API, or
+<http://localhost:8501> for the demo UI.
+
+The service starts in **mock mode** and answers from `fixtures/`, so the API is
+queryable straight after cloning with no model downloads. Trained weights and the
+FAISS index are gitignored (they are hundreds of megabytes); once they are present
+under `models/` and `data/processed/`, set `USE_MOCKS=0` for the real pipeline.
+
+Try an endpoint:
+
+```bash
+curl -s -X POST localhost:8000/recommend \
+  -H "Content-Type: application/json" \
+  -d '{"profile": {"query": "I have oily skin and keep getting breakouts"}}'
+```
+
 Gen AI course group project — **Group 2**.
 CNN skin analysis + retrieval-grounded, **post-trained** LLM recommendations.
 

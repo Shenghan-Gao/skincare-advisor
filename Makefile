@@ -49,5 +49,5 @@ verify:             ## what the grader does: clean install from pyproject, then 
 docker-build:
 	docker build -f docker/Dockerfile -t skincare-advisor .
 
-docker-up:
-	docker compose --project-directory . -f docker/docker-compose.yml up --build
+docker-up:            ## the command a grader runs: build and start api + ui
+	docker compose up --build
