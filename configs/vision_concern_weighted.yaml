@@ -1,0 +1,16 @@
+# Concern-primary experiment: keep the baseline augmentation recipe unchanged and
+# change only BCE positive-class weighting. Threshold calibration runs afterwards.
+kind: transfer
+backbone: resnet18
+epochs: 8
+lr: 0.0003
+batch_size: 32
+freeze_backbone: false
+concern_pos_weight: true
+selection_metric: concern_macro_f1
+
+train_csv: data/processed/vision_train.csv
+val_csv: data/processed/vision_val.csv
+out: models/vision
+
+run_name: transfer_resnet18_concern_weighted

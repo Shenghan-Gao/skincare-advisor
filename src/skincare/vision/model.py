@@ -7,7 +7,8 @@ The report compares them. Do not delete SimpleCNN -- it is the "from first
 principles" evidence the rubric rewards.
 """
 import torch
-import torch.nn as nn
+from torch import nn
+
 from skincare.config import CONCERNS, SKIN_TYPES
 
 
@@ -63,7 +64,14 @@ def build_model(kind: str = "transfer", **kw) -> nn.Module:
     return SimpleCNN(**kw) if kind == "simple" else TransferNet(**kw)
 
 
-def multitask_loss(type_logits, concern_logits, y_type, y_concern, w: float = 1.0):
+def multitask_loss(
+    type_logits,
+    concern_logits,
+    y_type,
+    y_concern,
+    w: float = 1.0,
+    concern_pos_weight=None,
+):
     """Multi-task loss. Skin type uses every sample; concerns use only annotated labels.
 
     Why the mask is required: one source dataset may annotate acne but never annotate
@@ -81,8 +89,17 @@ def multitask_loss(type_logits, concern_logits, y_type, y_concern, w: float = 1.
 
     valid = torch.isfinite(y_concern) & (y_concern >= 0)
     if valid.any():
-        bce = nn.functional.binary_cross_entropy_with_logits(
-            concern_logits[valid], y_concern[valid])
+        # Replace unknown targets before BCE: NaN multiplied by a zero mask is still
+        # NaN. Keeping the full [batch, concern] shape also lets PyTorch broadcast one
+        # pos_weight per concern before we select only labelled positions.
+        safe_targets = torch.where(valid, y_concern, torch.zeros_like(y_concern))
+        elementwise = nn.functional.binary_cross_entropy_with_logits(
+            concern_logits,
+            safe_targets,
+            pos_weight=concern_pos_weight,
+            reduction="none",
+        )
+        bce = elementwise[valid].mean()
     else:
         # No concern labels in this batch. Return a zero that is still connected to the
         # graph so the concern head keeps receiving (zero) gradient and DDP stays happy.

@@ -13,8 +13,8 @@ import pytest
 # To run these locally: uv pip install -e ".[vision]"
 torch = pytest.importorskip("torch", reason="install the 'vision' extra to run vision tests")
 
-from skincare.config import CONCERNS  # noqa: E402
-from skincare.vision.model import build_model, multitask_loss  # noqa: E402
+from skincare.config import CONCERNS
+from skincare.vision.model import build_model, multitask_loss
 
 NAN = float("nan")
 
@@ -78,6 +78,27 @@ def test_unlabeled_positions_receive_no_gradient():
     loss.backward()
     assert lc.grad[:, :3].abs().sum() > 0, "annotated concerns should get gradient"
     assert lc.grad[:, 3:].abs().sum() == 0, "unannotated concerns must get zero gradient"
+
+
+def test_pos_weight_applies_per_concern_without_unmasking_unknowns():
+    lt, lc, yt = _batch(n=2)
+    y = torch.tensor([
+        [1.0, NAN, NAN, NAN, NAN, NAN],
+        [0.0, NAN, NAN, NAN, NAN, NAN],
+    ])
+    weights = torch.tensor([2.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+
+    loss, _, bce = multitask_loss(
+        lt, lc, yt, y, concern_pos_weight=weights
+    )
+    loss.backward()
+
+    expected = torch.nn.functional.binary_cross_entropy_with_logits(
+        lc[:, 0], y[:, 0], pos_weight=weights[0]
+    ).item()
+    assert bce == pytest.approx(expected, rel=1e-6)
+    assert lc.grad[:, 0].abs().sum() > 0
+    assert lc.grad[:, 1:].abs().sum() == 0
 
 
 def test_evaluation_ignores_nan_and_reports_coverage():

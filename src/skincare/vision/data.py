@@ -58,3 +58,27 @@ def make_loaders(train_csv, val_csv, batch_size=32, num_workers=2):
         DataLoader(SkinDataset(val_csv, False), batch_size=batch_size,
                    shuffle=False, num_workers=num_workers),
     )
+
+
+def concern_pos_weight_stats(csv_path):
+    """Return per-concern ``negative / positive`` weights and auditable counts."""
+    frame = pd.read_csv(csv_path)
+    weights, stats = [], {}
+    for name in CONCERNS:
+        labelled = frame[name].dropna()
+        invalid = labelled[~labelled.isin([0, 1])]
+        if not invalid.empty:
+            raise ValueError(f"{name} contains labels outside 0/1")
+        positive = int((labelled == 1).sum())
+        negative = int((labelled == 0).sum())
+        if positive == 0:
+            raise ValueError(f"{name} has no positive training labels; pos_weight is undefined")
+        weight = negative / positive
+        weights.append(weight)
+        stats[name] = {
+            "labelled": len(labelled),
+            "positive": positive,
+            "negative": negative,
+            "pos_weight": weight,
+        }
+    return weights, stats

@@ -8,8 +8,10 @@ import io
 
 import torch
 from PIL import Image
+
 from app.schemas import ConcernScore, SkinAnalysis, SkinType
 from skincare.config import CONCERNS, SKIN_TYPES
+from skincare.vision.calibration import shift_logits_to_threshold
 from skincare.vision.data import build_transforms
 from skincare.vision.model import build_model
 
@@ -59,6 +61,12 @@ class SkinClassifier:
             ) from e
 
         self.model.to(self.device).eval()
+        self.concern_thresholds = ck.get("concern_thresholds", [0.5] * len(CONCERNS))
+        if len(self.concern_thresholds) != len(CONCERNS):
+            raise CheckpointMismatch(
+                f"Expected {len(CONCERNS)} concern thresholds, got "
+                f"{len(self.concern_thresholds)}"
+            )
         self.tf = build_transforms(train=False)
         self.version = f"{kind}:{cfg.get('backbone', '-')}:{cfg.get('run_name', '-')}"
 
@@ -68,7 +76,9 @@ class SkinClassifier:
         x = self.tf(img).unsqueeze(0).to(self.device)
         lt, lc = self.model(x)
         pt = torch.softmax(lt, 1)[0]
-        pc = torch.sigmoid(lc)[0]
+        # A calibrated checkpoint stores raw per-class validation thresholds. Shift
+        # logits so the unchanged SkinAnalysis.top_concerns(0.5) API applies them.
+        pc = torch.sigmoid(shift_logits_to_threshold(lc, self.concern_thresholds))[0]
         idx = int(pt.argmax())
         return SkinAnalysis(
             skin_type=SkinType(SKIN_TYPES[idx]),

@@ -21,6 +21,10 @@ from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 from torch.utils.data import DataLoader
 
 from skincare.config import CONCERNS, MODELS, PROCESSED, SKIN_TYPES
+from skincare.vision.calibration import (
+    bootstrap_concern_macro_f1,
+    concern_metrics,
+)
 from skincare.vision.data import SkinDataset
 from skincare.vision.model import build_model
 
@@ -69,28 +73,6 @@ def class_metrics(y_true, y_pred, labels, names):
         }
         for i, name in enumerate(names)
     }
-
-
-def concern_metrics(targets, probabilities):
-    predictions = (probabilities > 0.5).astype(int)
-    result = {}
-    for index, name in enumerate(CONCERNS):
-        column = targets[:, index]
-        valid = np.isfinite(column) & (column >= 0)
-        if not valid.any():
-            result[name] = {"precision": None, "recall": None, "f1": None, "support": 0}
-            continue
-        precision, recall, f1, _ = precision_recall_fscore_support(
-            column[valid].astype(int), predictions[valid, index],
-            average="binary", zero_division=0,
-        )
-        result[name] = {
-            "precision": float(precision),
-            "recall": float(recall),
-            "f1": float(f1),
-            "support": int(valid.sum()),
-        }
-    return result
 
 
 def plot_confusion(matrix, run_name: str, output: Path):
@@ -180,16 +162,17 @@ def baseline_rows(type_true, concern_true):
     type_result = class_metrics(
         type_true, majority_prediction, list(range(len(SKIN_TYPES))), SKIN_TYPES
     )
-    concern_result = concern_metrics(concern_true, np.ones_like(concern_true))
-    concern_scores = [
-        value["f1"] for value in concern_result.values() if value["f1"] is not None
-    ]
+    concern_summary = concern_metrics(
+        concern_true, np.ones_like(concern_true), np.full(len(CONCERNS), 0.5)
+    )
     blank = {
         "kind": "baseline", "backbone": None, "learning_rate": None,
         "checkpoint_mb": None, "train_type_accuracy": None,
         "generalization_gap_accuracy": None, "mean_macro_f1": None,
         "concern_correlation_mean": None, "concern_correlation_max": None,
         "concern_correlation_pairs_at_least_0_8": None,
+        "concern_ci_95_lower": None, "concern_ci_95_upper": None,
+        "concern_thresholds": None,
     }
     return [
         {
@@ -203,12 +186,12 @@ def baseline_rows(type_true, concern_true):
             "run_name": "all_positive_concern_baseline",
             "row_type": "baseline", **blank,
             "type_accuracy": None, "type_macro_f1": None,
-            "concern_macro_f1": float(np.mean(concern_scores)),
+            "concern_macro_f1": concern_summary["macro_f1"],
         },
     ]
 
 
-def plot_comparison(rows, baselines, output: Path):
+def plot_comparison(rows, baselines, output: Path, split_name: str):
     labels = [row["run_name"] for row in rows]
     x = np.arange(len(labels))
     width = 0.25
@@ -234,7 +217,7 @@ def plot_comparison(rows, baselines, output: Path):
     )
     ax.set_ylim(0, 0.82)
     ax.set_ylabel("Score")
-    ax.set_title("Vision checkpoint comparison on validation set")
+    ax.set_title(f"Vision checkpoint comparison on {split_name} set")
     ax.set_xticks(x, labels, rotation=15, ha="right")
     ax.grid(axis="y", alpha=0.25)
     ax.legend(loc="upper left", ncol=3)
@@ -253,6 +236,17 @@ def choose_device(requested: str) -> str:
     return "cpu"
 
 
+def ensure_split_matches_csv(csv_path: str, split_name: str):
+    """Prevent validation/test results from being mislabeled in either direction."""
+    csv_is_test = "test" in Path(csv_path).stem.lower()
+    requested_is_test = split_name == "test"
+    if csv_is_test != requested_is_test:
+        raise ValueError(
+            f"split mismatch: --val-csv={csv_path!r} and "
+            f"--split-name={split_name!r} do not describe the same split"
+        )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", action="append", required=True)
@@ -260,8 +254,12 @@ def main():
     parser.add_argument("--val-csv", default=str(PROCESSED / "vision_val.csv"))
     parser.add_argument("--output", default=str(MODELS / "vision" / "evaluation"))
     parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--bootstrap-samples", type=int, default=1000)
+    parser.add_argument("--bootstrap-seed", type=int, default=42)
+    parser.add_argument("--split-name", choices=["validation", "test"], default="validation")
     parser.add_argument("--device", default="auto")
     args = parser.parse_args()
+    ensure_split_matches_csv(args.val_csv, args.split_name)
 
     device = choose_device(args.device)
     output = Path(args.output)
@@ -286,13 +284,18 @@ def main():
         type_result = class_metrics(
             type_true, type_pred, list(range(len(SKIN_TYPES))), SKIN_TYPES
         )
-        concern_result = concern_metrics(concern_true, concern_prob)
+        thresholds = np.asarray(
+            checkpoint.get("concern_thresholds", [0.5] * len(CONCERNS)), dtype=float
+        )
+        concern_summary = concern_metrics(concern_true, concern_prob, thresholds)
+        concern_result = concern_summary["per_class"]
+        concern_ci = bootstrap_concern_macro_f1(
+            concern_true, concern_prob, thresholds,
+            samples=args.bootstrap_samples, seed=args.bootstrap_seed,
+        )
         type_accuracy = float((type_true == type_pred).mean())
         type_macro_f1 = float(np.mean([value["f1"] for value in type_result.values()]))
-        valid_concern_f1 = [
-            value["f1"] for value in concern_result.values() if value["f1"] is not None
-        ]
-        concern_macro_f1 = float(np.mean(valid_concern_f1))
+        concern_macro_f1 = concern_summary["macro_f1"]
         train_type_accuracy = float((train_type_true == train_type_pred).mean())
         correlation = concern_correlation(concern_prob)
         matrix = confusion_matrix(type_true, type_pred, labels=range(len(SKIN_TYPES)))
@@ -303,6 +306,7 @@ def main():
         row = {
             "run_name": run_name,
             "row_type": "model",
+            "evaluation_split": args.split_name,
             "kind": checkpoint.get("kind", "transfer"),
             "backbone": checkpoint.get("config", {}).get("backbone"),
             "learning_rate": checkpoint.get("config", {}).get("lr"),
@@ -318,12 +322,19 @@ def main():
             "concern_correlation_pairs_at_least_0_8": (
                 correlation["off_diagonal"]["pairs_at_least_0_8"]
             ),
+            "concern_ci_95_lower": concern_ci["lower"],
+            "concern_ci_95_upper": concern_ci["upper"],
+            "concern_thresholds": ";".join(f"{value:.2f}" for value in thresholds),
         }
         rows.append(row)
         full_report[run_name] = {
             **row,
             "type_per_class": type_result,
             "concern_per_class": concern_result,
+            "concern_macro_f1_bootstrap_95_ci": concern_ci,
+            "concern_thresholds": {
+                name: float(thresholds[index]) for index, name in enumerate(CONCERNS)
+            },
             "concern_probability_correlation": correlation,
             "type_confusion_matrix": matrix.tolist(),
         }
@@ -333,6 +344,19 @@ def main():
             output / f"{run_name}_per_class_f1.png",
         )
 
+    for row in baselines:
+        row["evaluation_split"] = args.split_name
+    full_report["_evaluation"] = {
+        "split_name": args.split_name,
+        "csv": args.val_csv,
+        "threshold_search_performed": False,
+        "threshold_source": "checkpoint concern_thresholds or 0.5 fallback",
+        "interpretation": (
+            "final held-out estimate with frozen thresholds"
+            if args.split_name == "test"
+            else "development-set estimate; calibrated checkpoints may be optimistic"
+        ),
+    }
     full_report["_baselines"] = {row["run_name"]: row for row in baselines}
     with (output / "vision_evaluation.json").open("w") as handle:
         json.dump(full_report, handle, indent=2)
@@ -340,7 +364,9 @@ def main():
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(baselines + rows)
-    plot_comparison(rows, baselines, output / "vision_model_comparison.png")
+    plot_comparison(
+        rows, baselines, output / "vision_model_comparison.png", args.split_name
+    )
     print(f"saved evaluation artifacts to {output}")
 
 

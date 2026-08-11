@@ -16,7 +16,7 @@ import torch
 from sklearn.metrics import classification_report, f1_score
 
 from skincare.config import CONCERNS, MODELS, PROCESSED
-from skincare.vision.data import make_loaders
+from skincare.vision.data import concern_pos_weight_stats, make_loaders
 from skincare.vision.model import build_model, multitask_loss
 
 
@@ -68,6 +68,11 @@ def parse_args():
     ap.add_argument("--lr", type=float)
     ap.add_argument("--batch-size", type=int)
     ap.add_argument("--freeze-backbone", action="store_true")
+    ap.add_argument("--concern-pos-weight", action="store_true")
+    ap.add_argument(
+        "--selection-metric",
+        choices=["mean_macro_f1", "type_macro_f1", "concern_macro_f1"],
+    )
     ap.add_argument("--train-csv")
     ap.add_argument("--val-csv")
     ap.add_argument("--out")
@@ -76,7 +81,8 @@ def parse_args():
 
     cfg = {
         "kind": "transfer", "backbone": "resnet18", "epochs": 8, "lr": 3e-4,
-        "batch_size": 32, "freeze_backbone": False,
+        "batch_size": 32, "freeze_backbone": False, "concern_pos_weight": False,
+        "selection_metric": "mean_macro_f1",
         "train_csv": str(PROCESSED / "vision_train.csv"),
         "val_csv": str(PROCESSED / "vision_val.csv"),
         "out": str(MODELS / "vision"), "run_name": "run",
@@ -97,6 +103,13 @@ def main():
     print(f"device={device}\nconfig={json.dumps(cfg, indent=2)}")
 
     train_dl, val_dl = make_loaders(cfg["train_csv"], cfg["val_csv"], cfg["batch_size"])
+    concern_pos_weight = None
+    if cfg["concern_pos_weight"]:
+        values, stats = concern_pos_weight_stats(cfg["train_csv"])
+        concern_pos_weight = torch.tensor(values, dtype=torch.float32, device=device)
+        cfg["concern_pos_weight_values"] = values
+        cfg["concern_label_stats"] = stats
+        print(f"concern_pos_weight={json.dumps(stats, indent=2)}")
     kw = {}
     if cfg["kind"] == "transfer":
         kw = {"backbone": cfg["backbone"], "freeze_backbone": cfg["freeze_backbone"]}
@@ -115,18 +128,23 @@ def main():
         for x, yt, yc in train_dl:
             opt.zero_grad()
             lt, lc = model(x.to(device))
-            loss, _, _ = multitask_loss(lt, lc, yt.to(device), yc.to(device))
+            loss, _, _ = multitask_loss(
+                lt,
+                lc,
+                yt.to(device),
+                yc.to(device),
+                concern_pos_weight=concern_pos_weight,
+            )
             loss.backward(); opt.step()
             total += loss.item()
         sched.step()
         m, _ = evaluate(model, val_dl, device)
+        m["mean_macro_f1"] = (m["type_macro_f1"] + m["concern_macro_f1"]) / 2
         m["train_loss"] = total / max(len(train_dl), 1)
         history.append(m)
         print(f"epoch {ep+1}/{cfg['epochs']} {m}")
 
-        # Keep a bounded, interpretable selection score. This has the same ordering as
-        # the old sum but, unlike a value named as an F1, can never exceed one.
-        score = (m["type_macro_f1"] + m["concern_macro_f1"]) / 2
+        score = m[cfg["selection_metric"]]
         if score > best:
             best = score
             torch.save({"state_dict": model.state_dict(), "kind": cfg["kind"],
@@ -137,12 +155,12 @@ def main():
     _, (y_true, y_pred) = evaluate(model, val_dl, device)
     report = {
         "run_name": cfg["run_name"], "config": cfg, "history": history,
-        "best_mean_macro_f1": best,
+        "selection_metric": cfg["selection_metric"], "best_selection_score": best,
         "per_class": classification_report(y_true, y_pred, output_dict=True, zero_division=0),
     }
     with open(out_dir / f"{cfg['run_name']}_report.json", "w") as f:
         json.dump(report, f, indent=2)
-    print(f"\ndone. best={best:.4f}\ncheckpoint: {ckpt_path}")
+    print(f"\ndone. best_{cfg['selection_metric']}={best:.4f}\ncheckpoint: {ckpt_path}")
     print(f"report:     {out_dir / (cfg['run_name'] + '_report.json')}")
     print(f"\nNext: python scripts/verify_handoff.py vision {ckpt_path}")
 
