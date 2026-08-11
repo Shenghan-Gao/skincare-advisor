@@ -19,8 +19,7 @@ def build_transforms(train: bool):
         return T.Compose([
             T.Resize((IMAGE_SIZE, IMAGE_SIZE)),
             T.RandomHorizontalFlip(),
-            # Skin type depends on colour, shine, and texture. Colour jitter changes
-            # those task-defining cues, so keep only geometry-preserving augmentation.
+            T.ColorJitter(0.2, 0.2, 0.2, 0.05),
             T.RandomAffine(degrees=10, translate=(0.05, 0.05)),
             T.ToTensor(), norm,
         ])
