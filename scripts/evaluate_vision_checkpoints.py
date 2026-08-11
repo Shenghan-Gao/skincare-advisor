@@ -236,6 +236,17 @@ def choose_device(requested: str) -> str:
     return "cpu"
 
 
+def ensure_split_matches_csv(csv_path: str, split_name: str):
+    """Prevent validation/test results from being mislabeled in either direction."""
+    csv_is_test = "test" in Path(csv_path).stem.lower()
+    requested_is_test = split_name == "test"
+    if csv_is_test != requested_is_test:
+        raise ValueError(
+            f"split mismatch: --val-csv={csv_path!r} and "
+            f"--split-name={split_name!r} do not describe the same split"
+        )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", action="append", required=True)
@@ -248,6 +259,7 @@ def main():
     parser.add_argument("--split-name", choices=["validation", "test"], default="validation")
     parser.add_argument("--device", default="auto")
     args = parser.parse_args()
+    ensure_split_matches_csv(args.val_csv, args.split_name)
 
     device = choose_device(args.device)
     output = Path(args.output)

@@ -1,6 +1,11 @@
 import numpy as np
+import pytest
 
-from scripts.evaluate_vision_checkpoints import baseline_rows, concern_correlation
+from scripts.evaluate_vision_checkpoints import (
+    baseline_rows,
+    concern_correlation,
+    ensure_split_matches_csv,
+)
 
 
 def test_baselines_are_computed_from_the_supplied_labels():
@@ -32,3 +37,13 @@ def test_concern_correlation_counts_highly_correlated_pairs():
     assert result["off_diagonal"]["total_pairs"] == 15
     assert result["off_diagonal"]["pairs_at_least_0_8"] == 15
     assert result["off_diagonal"]["max"] <= 1.0
+
+
+def test_evaluation_split_must_match_csv_name():
+    ensure_split_matches_csv("data/processed/vision_val.csv", "validation")
+    ensure_split_matches_csv("data/processed/vision_test.csv", "test")
+
+    with pytest.raises(ValueError, match="split mismatch"):
+        ensure_split_matches_csv("data/processed/vision_val.csv", "test")
+    with pytest.raises(ValueError, match="split mismatch"):
+        ensure_split_matches_csv("data/processed/vision_test.csv", "validation")
