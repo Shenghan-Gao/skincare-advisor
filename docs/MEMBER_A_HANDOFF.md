@@ -10,6 +10,36 @@ Member A owns the data-preparation layer (`src/skincare/rag/ingest.py`, `data/kn
 
 ### Raw source inspected
 
+**Reproducible source:**
+
+- Kaggle dataset: **Sephora Products and Skincare Reviews**
+- Dataset owner: **Nady Inky**
+- Kaggle dataset slug: `nadyinky/sephora-products-and-skincare-reviews`
+- Kaggle data card states that the data were collected with a Python scraper in **March 2023**.
+- The raw archive used by Member A contains exactly six files: `product_info.csv` plus five `reviews_*.csv` shards.
+- Raw archive SHA-256 used for this handoff: `da149ba6114abbe9c197fe7e0b072bd0e234f64fe956a423c5a2b12cd6a829e6`.
+
+To reproduce locally, download that Kaggle dataset and place the raw files here:
+
+```text
+data/raw/sephora/product_info.csv
+data/raw/sephora/reviews_0-250.csv
+data/raw/sephora/reviews_250-500.csv
+data/raw/sephora/reviews_500-750.csv
+data/raw/sephora/reviews_750-1250.csv
+data/raw/sephora/reviews_1250-end.csv
+```
+
+Then run:
+
+```bash
+python -m skincare.rag.ingest
+python scripts/validate_data.py products
+python scripts/validate_data.py chunks
+```
+
+**CSV / Parquet provenance:** `products_clean.csv` and `chunks_clean.csv` in the handoff package are CSV exports from the same Member A cleaning pipeline represented by the current `src/skincare/rag/ingest.py`. They were provided as easy-to-inspect interchange copies because the handoff environment did not have a Parquet engine. The formal downstream artifacts are `products.parquet` and `chunks.parquet`; serializing the cleaned CSV tables to Parquet does not change the logical records. The validated handoff counts are **2,282 products** and **43,089 chunks**.
+
 `Sephora Products and Skincare Reviews` contains:
 
 - `product_info.csv`: **8,494** products total.

@@ -1,5 +1,11 @@
 """Member A: build the skincare knowledge base from raw Sephora CSVs.
 
+Raw source used for this project:
+  Kaggle dataset: "Sephora Products and Skincare Reviews"
+  Owner: Nady Inky
+  Slug: nadyinky/sephora-products-and-skincare-reviews
+  Data card: collected via Python scraper in March 2023.
+
 Expected raw files under ``data/raw/sephora``:
   - product_info.csv
   - reviews_*.csv
