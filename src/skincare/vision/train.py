@@ -14,6 +14,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from sklearn.metrics import classification_report, f1_score
+
 from skincare.config import CONCERNS, MODELS, PROCESSED
 from skincare.vision.data import make_loaders
 from skincare.vision.model import build_model, multitask_loss
@@ -82,7 +83,8 @@ def parse_args():
     }
     if args.config:
         import yaml
-        cfg.update(yaml.safe_load(open(args.config)))
+        with open(args.config) as handle:
+            cfg.update(yaml.safe_load(handle))
     for k, v in vars(args).items():
         if k != "config" and v not in (None, False):
             cfg[k.replace("-", "_")] = v
@@ -122,7 +124,9 @@ def main():
         history.append(m)
         print(f"epoch {ep+1}/{cfg['epochs']} {m}")
 
-        score = m["type_macro_f1"] + m["concern_macro_f1"]
+        # Keep a bounded, interpretable selection score. This has the same ordering as
+        # the old sum but, unlike a value named as an F1, can never exceed one.
+        score = (m["type_macro_f1"] + m["concern_macro_f1"]) / 2
         if score > best:
             best = score
             torch.save({"state_dict": model.state_dict(), "kind": cfg["kind"],
@@ -133,7 +137,7 @@ def main():
     _, (y_true, y_pred) = evaluate(model, val_dl, device)
     report = {
         "run_name": cfg["run_name"], "config": cfg, "history": history,
-        "best_score": best,
+        "best_mean_macro_f1": best,
         "per_class": classification_report(y_true, y_pred, output_dict=True, zero_division=0),
     }
     with open(out_dir / f"{cfg['run_name']}_report.json", "w") as f:

@@ -8,6 +8,7 @@ import pandas as pd
 import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
+
 from skincare.config import CONCERNS, IMAGE_SIZE, SKIN_TYPES
 
 
@@ -18,7 +19,8 @@ def build_transforms(train: bool):
         return T.Compose([
             T.Resize((IMAGE_SIZE, IMAGE_SIZE)),
             T.RandomHorizontalFlip(),
-            T.ColorJitter(0.2, 0.2, 0.2, 0.05),
+            # Skin type depends on colour, shine, and texture. Colour jitter changes
+            # those task-defining cues, so keep only geometry-preserving augmentation.
             T.RandomAffine(degrees=10, translate=(0.05, 0.05)),
             T.ToTensor(), norm,
         ])

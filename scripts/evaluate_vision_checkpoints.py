@@ -149,7 +149,66 @@ def plot_per_class(type_result, concern_result, run_name: str, output: Path):
     plt.close(fig)
 
 
-def plot_comparison(rows, output: Path):
+def concern_correlation(probabilities):
+    """Summarise whether concern outputs move together across the validation set."""
+    matrix = np.corrcoef(probabilities, rowvar=False)
+    off_diagonal = matrix[np.triu_indices(len(CONCERNS), k=1)]
+    finite = off_diagonal[np.isfinite(off_diagonal)]
+    return {
+        "matrix": {
+            name: {
+                other: (float(matrix[row, col]) if np.isfinite(matrix[row, col]) else None)
+                for col, other in enumerate(CONCERNS)
+            }
+            for row, name in enumerate(CONCERNS)
+        },
+        "off_diagonal": {
+            "mean": float(finite.mean()) if finite.size else None,
+            "min": float(finite.min()) if finite.size else None,
+            "max": float(finite.max()) if finite.size else None,
+            "pairs_at_least_0_8": int((finite >= 0.8).sum()),
+            "finite_pairs": int(finite.size),
+            "total_pairs": len(off_diagonal),
+        },
+    }
+
+
+def baseline_rows(type_true, concern_true):
+    """Compute validation baselines from labels instead of hard-coding dataset counts."""
+    majority_class = int(np.bincount(type_true, minlength=len(SKIN_TYPES)).argmax())
+    majority_prediction = np.full_like(type_true, majority_class)
+    type_result = class_metrics(
+        type_true, majority_prediction, list(range(len(SKIN_TYPES))), SKIN_TYPES
+    )
+    concern_result = concern_metrics(concern_true, np.ones_like(concern_true))
+    concern_scores = [
+        value["f1"] for value in concern_result.values() if value["f1"] is not None
+    ]
+    blank = {
+        "kind": "baseline", "backbone": None, "learning_rate": None,
+        "checkpoint_mb": None, "train_type_accuracy": None,
+        "generalization_gap_accuracy": None, "mean_macro_f1": None,
+        "concern_correlation_mean": None, "concern_correlation_max": None,
+        "concern_correlation_pairs_at_least_0_8": None,
+    }
+    return [
+        {
+            "run_name": f"majority_type_baseline_{SKIN_TYPES[majority_class]}",
+            "row_type": "baseline", **blank,
+            "type_accuracy": float((type_true == majority_prediction).mean()),
+            "type_macro_f1": float(np.mean([value["f1"] for value in type_result.values()])),
+            "concern_macro_f1": None,
+        },
+        {
+            "run_name": "all_positive_concern_baseline",
+            "row_type": "baseline", **blank,
+            "type_accuracy": None, "type_macro_f1": None,
+            "concern_macro_f1": float(np.mean(concern_scores)),
+        },
+    ]
+
+
+def plot_comparison(rows, baselines, output: Path):
     labels = [row["run_name"] for row in rows]
     x = np.arange(len(labels))
     width = 0.25
@@ -164,6 +223,15 @@ def plot_comparison(rows, output: Path):
         for bar, value in zip(bars, values):
             ax.text(bar.get_x() + bar.get_width() / 2, value + 0.012,
                     f"{value:.3f}", ha="center", va="bottom", fontsize=8, rotation=90)
+    type_baseline, concern_baseline = baselines
+    ax.axhline(
+        type_baseline["type_accuracy"], color="#4C78A8", linestyle="--", alpha=0.75,
+        label=f"Majority type baseline ({type_baseline['type_accuracy']:.3f})",
+    )
+    ax.axhline(
+        concern_baseline["concern_macro_f1"], color="#54A24B", linestyle=":", alpha=0.9,
+        label=f"All-positive concern baseline ({concern_baseline['concern_macro_f1']:.3f})",
+    )
     ax.set_ylim(0, 0.82)
     ax.set_ylabel("Score")
     ax.set_title("Vision checkpoint comparison on validation set")
@@ -188,6 +256,7 @@ def choose_device(requested: str) -> str:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", action="append", required=True)
+    parser.add_argument("--train-csv", default=str(PROCESSED / "vision_train.csv"))
     parser.add_argument("--val-csv", default=str(PROCESSED / "vision_val.csv"))
     parser.add_argument("--output", default=str(MODELS / "vision" / "evaluation"))
     parser.add_argument("--batch-size", type=int, default=32)
@@ -197,17 +266,22 @@ def main():
     device = choose_device(args.device)
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
-    loader = DataLoader(
+    val_loader = DataLoader(
         SkinDataset(args.val_csv, train=False), batch_size=args.batch_size,
         shuffle=False, num_workers=0,
     )
-    rows, full_report = [], {}
+    train_loader = DataLoader(
+        SkinDataset(args.train_csv, train=False), batch_size=args.batch_size,
+        shuffle=False, num_workers=0,
+    )
+    rows, full_report, baselines = [], {}, None
     for raw_path in args.checkpoint:
         path = Path(raw_path)
         run_name = path.stem
         print(f"evaluating {run_name} on {device}", flush=True)
         model, checkpoint = load_checkpoint(path, device)
-        type_true, type_pred, concern_true, concern_prob = predict(model, loader, device)
+        type_true, type_pred, concern_true, concern_prob = predict(model, val_loader, device)
+        train_type_true, train_type_pred, _, _ = predict(model, train_loader, device)
 
         type_result = class_metrics(
             type_true, type_pred, list(range(len(SKIN_TYPES))), SKIN_TYPES
@@ -219,10 +293,16 @@ def main():
             value["f1"] for value in concern_result.values() if value["f1"] is not None
         ]
         concern_macro_f1 = float(np.mean(valid_concern_f1))
+        train_type_accuracy = float((train_type_true == train_type_pred).mean())
+        correlation = concern_correlation(concern_prob)
         matrix = confusion_matrix(type_true, type_pred, labels=range(len(SKIN_TYPES)))
+
+        if baselines is None:
+            baselines = baseline_rows(type_true, concern_true)
 
         row = {
             "run_name": run_name,
+            "row_type": "model",
             "kind": checkpoint.get("kind", "transfer"),
             "backbone": checkpoint.get("config", {}).get("backbone"),
             "learning_rate": checkpoint.get("config", {}).get("lr"),
@@ -230,13 +310,21 @@ def main():
             "type_accuracy": type_accuracy,
             "type_macro_f1": type_macro_f1,
             "concern_macro_f1": concern_macro_f1,
-            "combined_macro_f1": type_macro_f1 + concern_macro_f1,
+            "train_type_accuracy": train_type_accuracy,
+            "generalization_gap_accuracy": train_type_accuracy - type_accuracy,
+            "mean_macro_f1": (type_macro_f1 + concern_macro_f1) / 2,
+            "concern_correlation_mean": correlation["off_diagonal"]["mean"],
+            "concern_correlation_max": correlation["off_diagonal"]["max"],
+            "concern_correlation_pairs_at_least_0_8": (
+                correlation["off_diagonal"]["pairs_at_least_0_8"]
+            ),
         }
         rows.append(row)
         full_report[run_name] = {
             **row,
             "type_per_class": type_result,
             "concern_per_class": concern_result,
+            "concern_probability_correlation": correlation,
             "type_confusion_matrix": matrix.tolist(),
         }
         plot_confusion(matrix, run_name, output / f"{run_name}_confusion_matrix.png")
@@ -245,13 +333,14 @@ def main():
             output / f"{run_name}_per_class_f1.png",
         )
 
+    full_report["_baselines"] = {row["run_name"]: row for row in baselines}
     with (output / "vision_evaluation.json").open("w") as handle:
         json.dump(full_report, handle, indent=2)
     with (output / "vision_model_comparison.csv").open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()
-        writer.writerows(rows)
-    plot_comparison(rows, output / "vision_model_comparison.png")
+        writer.writerows(baselines + rows)
+    plot_comparison(rows, baselines, output / "vision_model_comparison.png")
     print(f"saved evaluation artifacts to {output}")
 
 
