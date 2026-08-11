@@ -21,6 +21,10 @@ from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 from torch.utils.data import DataLoader
 
 from skincare.config import CONCERNS, MODELS, PROCESSED, SKIN_TYPES
+from skincare.vision.calibration import (
+    bootstrap_concern_macro_f1,
+    concern_metrics,
+)
 from skincare.vision.data import SkinDataset
 from skincare.vision.model import build_model
 
@@ -69,28 +73,6 @@ def class_metrics(y_true, y_pred, labels, names):
         }
         for i, name in enumerate(names)
     }
-
-
-def concern_metrics(targets, probabilities):
-    predictions = (probabilities > 0.5).astype(int)
-    result = {}
-    for index, name in enumerate(CONCERNS):
-        column = targets[:, index]
-        valid = np.isfinite(column) & (column >= 0)
-        if not valid.any():
-            result[name] = {"precision": None, "recall": None, "f1": None, "support": 0}
-            continue
-        precision, recall, f1, _ = precision_recall_fscore_support(
-            column[valid].astype(int), predictions[valid, index],
-            average="binary", zero_division=0,
-        )
-        result[name] = {
-            "precision": float(precision),
-            "recall": float(recall),
-            "f1": float(f1),
-            "support": int(valid.sum()),
-        }
-    return result
 
 
 def plot_confusion(matrix, run_name: str, output: Path):
@@ -180,16 +162,17 @@ def baseline_rows(type_true, concern_true):
     type_result = class_metrics(
         type_true, majority_prediction, list(range(len(SKIN_TYPES))), SKIN_TYPES
     )
-    concern_result = concern_metrics(concern_true, np.ones_like(concern_true))
-    concern_scores = [
-        value["f1"] for value in concern_result.values() if value["f1"] is not None
-    ]
+    concern_summary = concern_metrics(
+        concern_true, np.ones_like(concern_true), np.full(len(CONCERNS), 0.5)
+    )
     blank = {
         "kind": "baseline", "backbone": None, "learning_rate": None,
         "checkpoint_mb": None, "train_type_accuracy": None,
         "generalization_gap_accuracy": None, "mean_macro_f1": None,
         "concern_correlation_mean": None, "concern_correlation_max": None,
         "concern_correlation_pairs_at_least_0_8": None,
+        "concern_ci_95_lower": None, "concern_ci_95_upper": None,
+        "concern_thresholds": None,
     }
     return [
         {
@@ -203,7 +186,7 @@ def baseline_rows(type_true, concern_true):
             "run_name": "all_positive_concern_baseline",
             "row_type": "baseline", **blank,
             "type_accuracy": None, "type_macro_f1": None,
-            "concern_macro_f1": float(np.mean(concern_scores)),
+            "concern_macro_f1": concern_summary["macro_f1"],
         },
     ]
 
@@ -260,6 +243,8 @@ def main():
     parser.add_argument("--val-csv", default=str(PROCESSED / "vision_val.csv"))
     parser.add_argument("--output", default=str(MODELS / "vision" / "evaluation"))
     parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--bootstrap-samples", type=int, default=1000)
+    parser.add_argument("--bootstrap-seed", type=int, default=42)
     parser.add_argument("--device", default="auto")
     args = parser.parse_args()
 
@@ -286,13 +271,18 @@ def main():
         type_result = class_metrics(
             type_true, type_pred, list(range(len(SKIN_TYPES))), SKIN_TYPES
         )
-        concern_result = concern_metrics(concern_true, concern_prob)
+        thresholds = np.asarray(
+            checkpoint.get("concern_thresholds", [0.5] * len(CONCERNS)), dtype=float
+        )
+        concern_summary = concern_metrics(concern_true, concern_prob, thresholds)
+        concern_result = concern_summary["per_class"]
+        concern_ci = bootstrap_concern_macro_f1(
+            concern_true, concern_prob, thresholds,
+            samples=args.bootstrap_samples, seed=args.bootstrap_seed,
+        )
         type_accuracy = float((type_true == type_pred).mean())
         type_macro_f1 = float(np.mean([value["f1"] for value in type_result.values()]))
-        valid_concern_f1 = [
-            value["f1"] for value in concern_result.values() if value["f1"] is not None
-        ]
-        concern_macro_f1 = float(np.mean(valid_concern_f1))
+        concern_macro_f1 = concern_summary["macro_f1"]
         train_type_accuracy = float((train_type_true == train_type_pred).mean())
         correlation = concern_correlation(concern_prob)
         matrix = confusion_matrix(type_true, type_pred, labels=range(len(SKIN_TYPES)))
@@ -318,12 +308,19 @@ def main():
             "concern_correlation_pairs_at_least_0_8": (
                 correlation["off_diagonal"]["pairs_at_least_0_8"]
             ),
+            "concern_ci_95_lower": concern_ci["lower"],
+            "concern_ci_95_upper": concern_ci["upper"],
+            "concern_thresholds": ";".join(f"{value:.2f}" for value in thresholds),
         }
         rows.append(row)
         full_report[run_name] = {
             **row,
             "type_per_class": type_result,
             "concern_per_class": concern_result,
+            "concern_macro_f1_bootstrap_95_ci": concern_ci,
+            "concern_thresholds": {
+                name: float(thresholds[index]) for index, name in enumerate(CONCERNS)
+            },
             "concern_probability_correlation": correlation,
             "type_confusion_matrix": matrix.tolist(),
         }
