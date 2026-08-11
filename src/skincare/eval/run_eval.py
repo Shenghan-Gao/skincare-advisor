@@ -18,18 +18,49 @@ from skincare.llm.rewards import reward_breakdown
 COMPONENTS = ["format", "ingredient_match", "grounding", "product_validity", "safety", "total"]
 
 
-def score_rows(gen_fn, rows: list[dict]) -> dict:
+def score_rows(gen_fn, rows: list[dict], cache: Path | None = None,
+               label: str = "") -> dict:
+    """Score every row, caching each one as it lands.
+
+    A variant takes about a generation per row; without a per-row cache an
+    interrupted run loses the whole variant, and on a session that keeps dropping
+    the evaluation never finishes at all. The cache is keyed by row index against
+    a fixed split, so resuming replays nothing.
+    """
+    done: dict[int, dict] = {}
+    if cache and cache.exists():
+        for line in cache.open():
+            d = json.loads(line)
+            done[d["i"]] = d["b"]
+        if done:
+            print(f"    {label}: {len(done)}/{len(rows)} rows restored from cache")
+
+    handle = cache.open("a") if cache else None
+    try:
+        for i, row in enumerate(rows):
+            if i in done:
+                continue
+            completion = gen_fn(row["prompt"])
+            b = reward_breakdown(
+                completion,
+                concerns=row.get("concerns"),
+                evidence_ids=row.get("evidence_ids"),
+                product_ids=row.get("product_ids"),
+                pregnant=row.get("pregnant", False),
+                avoid=row.get("avoid", []),
+            )
+            done[i] = b
+            if handle:
+                handle.write(json.dumps({"i": i, "b": b}) + "\n")
+                handle.flush()
+            if (i + 1) % 10 == 0:
+                print(f"    {label}: {i + 1}/{len(rows)}", flush=True)
+    finally:
+        if handle:
+            handle.close()
+
     agg = defaultdict(list)
-    for row in rows:
-        completion = gen_fn(row["prompt"])
-        b = reward_breakdown(
-            completion,
-            concerns=row.get("concerns"),
-            evidence_ids=row.get("evidence_ids"),
-            product_ids=row.get("product_ids"),
-            pregnant=row.get("pregnant", False),
-            avoid=row.get("avoid", []),
-        )
+    for b in done.values():
         for k, v in b.items():
             agg[k].append(v)
     return {k: sum(v) / len(v) for k, v in agg.items()}
@@ -110,7 +141,9 @@ def main():
         except Exception as e:
             print(f"  skipping {v}: {e}")
             continue
-        results[v] = score_rows(gen, rows)
+        cache_dir = out.parent / ".eval_cache"
+        cache_dir.mkdir(exist_ok=True)
+        results[v] = score_rows(gen, rows, cache_dir / f"{v}.jsonl", v)
         flush()
         print(f"  {v:8s} total={results[v]['total']:.3f}   (saved)")
 
