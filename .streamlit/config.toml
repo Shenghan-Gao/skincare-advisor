@@ -1,0 +1,18 @@
+# Skinsight demo theme.
+#
+# The UI paints its own surface (paper #FBF9F7) with inline CSS, so the Streamlit
+# theme has to be pinned to light: if the viewer's OS is in dark mode Streamlit
+# would render its widgets dark on top of a light page. Pinning it here means the
+# recorded walkthrough looks the same on every machine, which is the whole point
+# of a graded demo video.
+#
+# Colours mirror the palette constants in ui/streamlit_app.py -- keep them in sync.
+[theme]
+base = "light"
+primaryColor = "#C8705F"
+backgroundColor = "#FBF9F7"
+secondaryBackgroundColor = "#F2ECE8"
+textColor = "#14110F"
+
+[browser]
+gatherUsageStats = false

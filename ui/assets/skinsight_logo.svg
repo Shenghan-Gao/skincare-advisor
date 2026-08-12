@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 96" width="380" height="96" role="img" aria-label="Skinsight">
+  <title>Skinsight</title>
+  <!-- Mark: a lens ring reading a droplet. The accent arc is the part of the ring
+       the scan has covered, which is the whole product in one shape: look at skin,
+       measure it, report only what you measured. Two strokes and one fill, no
+       gradients, because it has to stay legible as a 24px favicon. -->
+  <g transform="translate(10,10)">
+    <circle cx="38" cy="38" r="33" fill="none" stroke="#14110F" stroke-width="3.5"/>
+    <path d="M38 5 a 33 33 0 0 1 28.6 16.5" fill="none" stroke="#C8705F"
+          stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M38 21 C 48 32, 52 39, 52 45 a 14 14 0 0 1 -28 0 c 0 -6, 4 -13, 14 -24 z"
+          fill="#C8705F"/>
+    <circle cx="33" cy="45" r="3.6" fill="#FBF9F7" opacity="0.85"/>
+  </g>
+  <text x="104" y="60" font-family="Georgia, 'Times New Roman', serif"
+        font-size="42" letter-spacing="0.5" fill="#14110F">Skin<tspan font-style="italic" fill="#C8705F">sight</tspan></text>
+  <text x="106" y="79" font-family="Helvetica, Arial, sans-serif" font-size="10.5"
+        letter-spacing="3.4" fill="#8A817C">EVIDENCE·FIRST SKINCARE</text>
+</svg>

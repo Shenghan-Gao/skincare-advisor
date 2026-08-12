@@ -2,20 +2,41 @@
   {
     "label": "1 · Oily + acne (baseline)",
     "query": "My T-zone is shiny by lunchtime and I keep getting breakouts along my jawline and chin. I want a simple routine that actually clears them up.",
-    "budget_usd": 40,
+    "budget_usd": 0,
     "pregnant": false,
-    "preferences": ["fragrance-free", "lightweight"],
+    "preferences": [
+      "fragrance-free",
+      "lightweight"
+    ],
     "avoid_ingredients": [],
     "analysis": {
       "skin_type": "oily",
       "skin_type_confidence": 0.91,
       "concerns": [
-        {"concern": "acne", "score": 0.82},
-        {"concern": "dark_spots", "score": 0.21},
-        {"concern": "redness", "score": 0.3},
-        {"concern": "large_pores", "score": 0.68},
-        {"concern": "wrinkles", "score": 0.08},
-        {"concern": "dryness", "score": 0.12}
+        {
+          "concern": "acne",
+          "score": 0.82
+        },
+        {
+          "concern": "dark_spots",
+          "score": 0.21
+        },
+        {
+          "concern": "redness",
+          "score": 0.3
+        },
+        {
+          "concern": "large_pores",
+          "score": 0.68
+        },
+        {
+          "concern": "wrinkles",
+          "score": 0.08
+        },
+        {
+          "concern": "dryness",
+          "score": 0.12
+        }
       ]
     }
   },
@@ -24,18 +45,38 @@
     "query": "I am five months pregnant. I have started seeing fine lines around my eyes and I am also breaking out more than usual. What can I safely use?",
     "budget_usd": null,
     "pregnant": true,
-    "preferences": ["fragrance-free"],
+    "preferences": [
+      "fragrance-free"
+    ],
     "avoid_ingredients": [],
     "analysis": {
       "skin_type": "combination",
       "skin_type_confidence": 0.74,
       "concerns": [
-        {"concern": "acne", "score": 0.61},
-        {"concern": "dark_spots", "score": 0.34},
-        {"concern": "redness", "score": 0.28},
-        {"concern": "large_pores", "score": 0.4},
-        {"concern": "wrinkles", "score": 0.66},
-        {"concern": "dryness", "score": 0.22}
+        {
+          "concern": "acne",
+          "score": 0.61
+        },
+        {
+          "concern": "dark_spots",
+          "score": 0.34
+        },
+        {
+          "concern": "redness",
+          "score": 0.28
+        },
+        {
+          "concern": "large_pores",
+          "score": 0.4
+        },
+        {
+          "concern": "wrinkles",
+          "score": 0.66
+        },
+        {
+          "concern": "dryness",
+          "score": 0.22
+        }
       ]
     }
   },
@@ -44,18 +85,38 @@
     "query": "I am a student on a tight budget. My skin feels tight and dry and I am starting to notice fine lines. Please keep everything under twelve dollars.",
     "budget_usd": 12,
     "pregnant": false,
-    "preferences": ["fragrance-free"],
+    "preferences": [
+      "fragrance-free"
+    ],
     "avoid_ingredients": [],
     "analysis": {
       "skin_type": "dry",
       "skin_type_confidence": 0.83,
       "concerns": [
-        {"concern": "acne", "score": 0.14},
-        {"concern": "dark_spots", "score": 0.25},
-        {"concern": "redness", "score": 0.31},
-        {"concern": "large_pores", "score": 0.18},
-        {"concern": "wrinkles", "score": 0.58},
-        {"concern": "dryness", "score": 0.79}
+        {
+          "concern": "acne",
+          "score": 0.14
+        },
+        {
+          "concern": "dark_spots",
+          "score": 0.25
+        },
+        {
+          "concern": "redness",
+          "score": 0.31
+        },
+        {
+          "concern": "large_pores",
+          "score": 0.18
+        },
+        {
+          "concern": "wrinkles",
+          "score": 0.58
+        },
+        {
+          "concern": "dryness",
+          "score": 0.79
+        }
       ]
     }
   },
@@ -64,18 +125,41 @@
     "query": "Same oily, breakout-prone skin as always, but salicylic acid always stings and leaves me flaking. Please keep BHA out of my routine.",
     "budget_usd": null,
     "pregnant": false,
-    "preferences": ["fragrance-free", "gentle"],
-    "avoid_ingredients": ["salicylic acid"],
+    "preferences": [
+      "fragrance-free",
+      "gentle"
+    ],
+    "avoid_ingredients": [
+      "salicylic acid"
+    ],
     "analysis": {
       "skin_type": "oily",
       "skin_type_confidence": 0.88,
       "concerns": [
-        {"concern": "acne", "score": 0.8},
-        {"concern": "dark_spots", "score": 0.19},
-        {"concern": "redness", "score": 0.36},
-        {"concern": "large_pores", "score": 0.71},
-        {"concern": "wrinkles", "score": 0.09},
-        {"concern": "dryness", "score": 0.15}
+        {
+          "concern": "acne",
+          "score": 0.8
+        },
+        {
+          "concern": "dark_spots",
+          "score": 0.19
+        },
+        {
+          "concern": "redness",
+          "score": 0.36
+        },
+        {
+          "concern": "large_pores",
+          "score": 0.71
+        },
+        {
+          "concern": "wrinkles",
+          "score": 0.09
+        },
+        {
+          "concern": "dryness",
+          "score": 0.15
+        }
       ]
     }
   },
@@ -84,18 +168,39 @@
     "query": "My skin is flaky and tight, especially in winter, and it stings whenever I use actives. I just want to repair my barrier first.",
     "budget_usd": null,
     "pregnant": false,
-    "preferences": ["fragrance-free", "gentle"],
+    "preferences": [
+      "fragrance-free",
+      "gentle"
+    ],
     "avoid_ingredients": [],
     "analysis": {
       "skin_type": "dry",
       "skin_type_confidence": 0.9,
       "concerns": [
-        {"concern": "acne", "score": 0.11},
-        {"concern": "dark_spots", "score": 0.22},
-        {"concern": "redness", "score": 0.42},
-        {"concern": "large_pores", "score": 0.16},
-        {"concern": "wrinkles", "score": 0.27},
-        {"concern": "dryness", "score": 0.86}
+        {
+          "concern": "acne",
+          "score": 0.11
+        },
+        {
+          "concern": "dark_spots",
+          "score": 0.22
+        },
+        {
+          "concern": "redness",
+          "score": 0.42
+        },
+        {
+          "concern": "large_pores",
+          "score": 0.16
+        },
+        {
+          "concern": "wrinkles",
+          "score": 0.27
+        },
+        {
+          "concern": "dryness",
+          "score": 0.86
+        }
       ]
     }
   }

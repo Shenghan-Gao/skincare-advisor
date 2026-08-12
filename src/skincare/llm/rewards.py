@@ -36,8 +36,8 @@ def _parse(completion: str) -> dict | None:
     stray `{"disclaimer": "..."}` emitted first cannot mask the real answer.
     """
     text = re.sub(r"^```(?:json)?|```$", "", (completion or "").strip(), flags=re.MULTILINE)
-    first: dict | None = None
-    for match in re.finditer(r"\{", text):
+    outermost: dict | None = None
+    for i, match in enumerate(re.finditer(r"\{", text)):
         try:
             obj, _ = _DECODER.raw_decode(text, match.start())
         except ValueError:
@@ -46,9 +46,14 @@ def _parse(completion: str) -> dict | None:
             continue
         if "recommendations" in obj:
             return obj
-        if first is None:
-            first = obj
-    return first
+        # Only the object that opens at the first brace counts as the answer. A later
+        # one is a fragment salvaged out of a reply that was cut off before its outer
+        # object closed -- typically the first recommendation, complete on its own.
+        # Returning that would report a truncated generation as a parsed one, which
+        # scores it as well-formed and hands serving an answer with no recommendations.
+        if i == 0:
+            outermost = obj
+    return outermost
 
 
 # ---------------------------------------------------------------- format ---

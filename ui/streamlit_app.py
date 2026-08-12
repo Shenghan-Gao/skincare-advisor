@@ -157,7 +157,11 @@ FALLBACK_PROFILES: list[dict[str, Any]] = [
     {
         "label": "Combination skin - breakouts and dark spots",
         "query": "Combination skin, breakouts on my chin and some dark spots I want to fade.",
-        "budget_usd": 40,
+        # No ceiling on the profile the demo opens with. The budget is a hard filter over
+        # a retrieval neighbourhood, not a preference passed to the model, so a $40 cap on
+        # a set of $92/$56/$42 products empties the answer -- and the empty state then has
+        # to guess why. Preset 3 exists to show the filter working on purpose.
+        "budget_usd": 0,
         "pregnant": False,
         "preferences": ["fragrance-free"],
         "avoid_ingredients": [],

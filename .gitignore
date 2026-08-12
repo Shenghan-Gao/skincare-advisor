@@ -43,3 +43,9 @@ reports/*.ipynb
 *.key
 
 COMMIT_MSG.tmp
+
+# Editor and hand-made backups. Two of these reached the repository once; a grader
+# reading the tree should not have to work out which of two files is live.
+*.bak
+*.orig
+*.rej
