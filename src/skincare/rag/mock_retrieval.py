@@ -25,6 +25,13 @@ class MockRetriever:
         self._chunks = data["chunks"]
         self.rng = random.Random(seed)
 
+    def product_table(self, product_ids) -> dict[str, Product]:
+        """Mirrors Retriever.product_table so the two stay interchangeable."""
+        by_id = {p["product_id"]: p for p in self._products}
+        return {pid: Product(**{k: v for k, v in by_id[pid].items()
+                                if not k.startswith("_")})
+                for pid in dict.fromkeys(product_ids) if pid in by_id}
+
     def search(self, profile: UserProfile, analysis: SkinAnalysis | None,
                top_k: int = 3, n_chunks: int = 12) -> RetrievalResult:
         wanted = set(analysis.top_concerns() if analysis else [])

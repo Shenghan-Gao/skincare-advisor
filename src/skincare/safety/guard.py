@@ -57,7 +57,17 @@ def _contains_any(ingredient_text: str, needles: list[str]) -> list[str]:
             if needle and _normalise(needle) in text]
 
 
-def apply_safety(resp: AdvisorResponse, profile: UserProfile) -> AdvisorResponse:
+def apply_safety(resp: AdvisorResponse, profile: UserProfile,
+                 catalogue: dict[str, list[str]] | None = None) -> AdvisorResponse:
+    """Apply the deterministic rules to a generated response.
+
+    `catalogue` maps product_id to that product's full ingredient list. It is
+    optional so every existing caller keeps working, but pass it when you have it.
+    Without it the guard can only read `rec.key_ingredients`, which is what the
+    *model* claimed the actives are -- a user avoiding fragrance goes unflagged
+    whenever the model simply did not mention fragrance, which is most of the time.
+    With it the rules run against the formula the catalogue records.
+    """
     rules = load_rules()
     flags: list[str] = list(resp.safety_flags)
 
@@ -88,9 +98,9 @@ def apply_safety(resp: AdvisorResponse, profile: UserProfile) -> AdvisorResponse
 
     kept = []
     for rec in resp.recommendations:
-        # The current response contract exposes key ingredients rather than the
-        # full product formula.  This is a known limitation documented in report.
-        ingredient_text = " | ".join(str(x).lower() for x in rec.key_ingredients)
+        declared = [str(x) for x in rec.key_ingredients]
+        actual = list((catalogue or {}).get(rec.product_id) or [])
+        ingredient_text = " | ".join(x.lower() for x in declared + actual)
 
         if profile.pregnant:
             unsafe_hits = _contains_any(ingredient_text, hard_pregnancy)

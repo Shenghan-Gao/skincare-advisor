@@ -81,20 +81,45 @@ class Retriever:
         self.device = device
         self.rerank_model = rerank_model
 
+    def product_table(self, product_ids) -> dict[str, Product]:
+        """Catalogue rows for any product ids, not only the top-k candidates.
+
+        RetrievalResult.products holds the top-k summary, but the evidence block
+        shown to the model spans more products than that, and the model may
+        legitimately recommend any of them. Callers that need a product's real
+        name, price or formula have to be able to look up the wider set.
+        """
+        out: dict[str, Product] = {}
+        for pid in dict.fromkeys(product_ids):
+            if pid in self.products.index:
+                out[pid] = Product(product_id=pid, **self.products.loc[pid].to_dict())
+        return out
+
     def search(self, profile: UserProfile, analysis: SkinAnalysis | None,
                top_k: int = 3, n_chunks: int = 30) -> RetrievalResult:
         from skincare.rag.index import embed_texts
         query = build_query(profile, analysis)
         qv = embed_texts([query], model_name=self.embedding_model,
                          device=self.device)
-        scores, idx = self.index.search(qv, n_chunks)
+        # A budget filter applied to a fixed-size result set can empty it. Thirty
+        # chunks is a handful of products, because one product contributes up to
+        # twenty review chunks, and a query about wrinkles lands on premium serums.
+        # Filtering afterwards then returns nothing while 2,052 of the 2,282 products
+        # are inside the budget -- the user is told no product qualifies when what
+        # happened is that the search never looked past the expensive ones. So
+        # over-fetch when a budget is set and trim after filtering.
+        k = n_chunks * 20 if profile.budget_usd else n_chunks
+        # getattr, because the index is swapped for a stub in tests and a real
+        # faiss index is the only thing that carries ntotal.
+        k = min(k, getattr(self.index, "ntotal", k))
+        scores, idx = self.index.search(qv, k)
 
         hits = self.meta.iloc[idx[0]].copy()
         hits["score"] = scores[0]
         # hard filters the LLM must not have to reason about
         if profile.budget_usd:
             ok = self.products[self.products["price_usd"] <= profile.budget_usd].index
-            hits = hits[hits["product_id"].isin(ok)]
+            hits = hits[hits["product_id"].isin(ok)].head(n_chunks)
 
         if self.rerank_model and not hits.empty:
             reranker = get_reranker(self.rerank_model, self.device)

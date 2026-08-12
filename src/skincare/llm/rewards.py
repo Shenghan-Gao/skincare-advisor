@@ -14,17 +14,41 @@ from skincare.rag.retrieve import load_rules
 _RULES = load_rules()
 
 
+_DECODER = json.JSONDecoder()
+
+
 def _parse(completion: str) -> dict | None:
-    """Tolerant JSON extraction -- models like to wrap output in prose/fences."""
-    text = re.sub(r"^```(?:json)?|```$", "", completion.strip(), flags=re.MULTILINE)
-    m = re.search(r"\{.*\}", text, re.DOTALL)
-    if not m:
-        return None
-    try:
-        obj = json.loads(m.group(0))
-        return obj if isinstance(obj, dict) else None
-    except json.JSONDecodeError:
-        return None
+    """Tolerant JSON extraction -- models like to wrap output in prose/fences.
+
+    Take the first *complete* JSON object, not the span from the first '{' to the
+    last '}'. The greedy span is wrong the moment anything follows the object, and
+    something usually does: a closing remark that happens to contain a brace, or --
+    with do_sample=False on a small model -- a second copy of the same answer.
+    json.loads is then handed two objects glued together, raises, and a complete,
+    well-formed set of recommendations is thrown away. Serving turns that into an
+    empty `recommendations` list with a 200, which the interface explains to the user
+    as a budget or safety outcome, because nothing upstream said otherwise.
+
+    Scanning is strictly more permissive than the old regex: raw_decode understands
+    strings, so braces inside `reason` no longer end the object early, and prose
+    before the JSON (`Here is the {answer}: {...}`) no longer poisons the match.
+    An object carrying "recommendations" wins over an earlier one that does not, so a
+    stray `{"disclaimer": "..."}` emitted first cannot mask the real answer.
+    """
+    text = re.sub(r"^```(?:json)?|```$", "", (completion or "").strip(), flags=re.MULTILINE)
+    first: dict | None = None
+    for match in re.finditer(r"\{", text):
+        try:
+            obj, _ = _DECODER.raw_decode(text, match.start())
+        except ValueError:
+            continue
+        if not isinstance(obj, dict):
+            continue
+        if "recommendations" in obj:
+            return obj
+        if first is None:
+            first = obj
+    return first
 
 
 # ---------------------------------------------------------------- format ---
