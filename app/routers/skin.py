@@ -1,7 +1,7 @@
 """Pillar 1 endpoint -- CNN skin analysis."""
 from fastapi import APIRouter, File, UploadFile, HTTPException
 from app.schemas import SkinAnalysis
-from app.deps import use_mocks, load_fixture
+from app.deps import use_mock_vision, load_fixture
 
 router = APIRouter(tags=["vision"])
 
@@ -12,7 +12,7 @@ async def analyze_skin(image: UploadFile = File(...)):
     if not raw:
         raise HTTPException(400, "empty image")
 
-    if use_mocks():
+    if use_mock_vision():
         return SkinAnalysis(**load_fixture("mock_skin_analysis.json"))
 
     from app.deps import get_vision_model

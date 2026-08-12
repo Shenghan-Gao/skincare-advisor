@@ -14,10 +14,13 @@
 # same command works with or without flags -- and the command a grader is most
 # likely to type is the one that works.
 #
-# A fresh clone has no models/ or data/processed/ content (both are gitignored),
-# so the service starts in mock mode and answers from fixtures/. That is
-# deliberate: the API is queryable immediately, with no downloads. Set
-# USE_MOCKS=0 once real artefacts are present.
+# A fresh clone has no models/ or data/processed/ content (both are gitignored), so the
+# defaults below run the real request path over the synthetic catalogue that ships in
+# fixtures/: real query construction, real retrieval, real safety filtering, a templated
+# writer. Different input returns different products and the guard rules fire, with no
+# downloads. Vision alone answers from a fixture, because the classifier weights are not
+# in a fresh clone and torch is not in the image. Mount models/ and data/processed/ and
+# set USE_MOCK_RETRIEVAL=0 USE_STUB_GENERATOR=0 to serve the trained stack.
 services:
   api:
     build:
@@ -25,9 +28,10 @@ services:
       dockerfile: docker/Dockerfile
     ports: ["8000:8000"]
     environment:
-      USE_MOCKS: "${USE_MOCKS:-1}"
-      USE_MOCK_RETRIEVAL: "${USE_MOCK_RETRIEVAL:-0}"
-      USE_STUB_GENERATOR: "${USE_STUB_GENERATOR:-0}"
+      USE_MOCKS: "${USE_MOCKS:-0}"
+      USE_MOCK_VISION: "${USE_MOCK_VISION:-1}"
+      USE_MOCK_RETRIEVAL: "${USE_MOCK_RETRIEVAL:-1}"
+      USE_STUB_GENERATOR: "${USE_STUB_GENERATOR:-1}"
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
       LLM_BASE_MODEL: "${LLM_BASE_MODEL:-Qwen/Qwen2.5-1.5B-Instruct}"
       LLM_ADAPTER: "${LLM_ADAPTER:-}"

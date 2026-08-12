@@ -13,6 +13,18 @@ def use_mocks() -> bool:
     return os.getenv("USE_MOCKS", "1") == "1"
 
 
+def use_mock_vision() -> bool:
+    """Whether /analyze-skin answers from a fixture instead of loading the CNN.
+
+    Separate from USE_MOCKS so the shipped image can serve the real recommend path --
+    real query construction, real retrieval, real safety filtering -- while still
+    answering /analyze-skin from a fixture. The container has no torch: the classifier
+    is 43 MB of weights that a fresh clone does not have, and installing torch to load
+    weights that are not there buys nothing. Defaults to whatever USE_MOCKS says.
+    """
+    return os.getenv("USE_MOCK_VISION", os.getenv("USE_MOCKS", "1")) == "1"
+
+
 def use_mock_retrieval() -> bool:
     """On the real pipeline (USE_MOCKS=0), whether MockRetriever stands in for FAISS search.
 

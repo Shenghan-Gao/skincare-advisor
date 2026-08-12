@@ -26,7 +26,23 @@ COPY fixtures ./fixtures
 COPY data/knowledge ./data/knowledge
 RUN uv pip install --system -e .
 
-ENV USE_MOCKS=1
+# Ship the configuration a reader can actually interact with. USE_MOCKS=1 returned one
+# fixed response to every request, which satisfies "the API can be queried" and not
+# "users can interact with the functionality" -- two different prompts came back
+# identical. This configuration runs the real router path: the real query builder, the
+# real retrieval interface over the synthetic catalogue in fixtures/, the stub writer,
+# and the real safety guard. Different input gives different products, citations resolve,
+# and the pregnancy and medical-boundary rules fire. It needs nothing beyond the base
+# dependencies, so a fresh clone still starts offline with no downloads.
+#
+# Vision stays on its fixture: the classifier is 43 MB of weights a fresh clone does not
+# have, and torch would double the image to load weights that are not there.
+# Set USE_MOCK_RETRIEVAL=0 and USE_STUB_GENERATOR=0 with models/ and data/processed/
+# mounted to serve the trained stack.
+ENV USE_MOCKS=0 \
+    USE_MOCK_VISION=1 \
+    USE_MOCK_RETRIEVAL=1 \
+    USE_STUB_GENERATOR=1
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
   CMD curl -fsS http://localhost:8000/health || exit 1

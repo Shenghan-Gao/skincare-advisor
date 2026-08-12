@@ -12,10 +12,17 @@ curl localhost:8000/health
 Then open <http://localhost:8000/docs> for the interactive API, or
 <http://localhost:8501> for the demo UI.
 
-The service starts in **mock mode** and answers from `fixtures/`, so the API is
-queryable straight after cloning with no model downloads. Trained weights and the
-FAISS index are gitignored (they are hundreds of megabytes); once they are present
-under `models/` and `data/processed/`, set `USE_MOCKS=0` for the real pipeline.
+A fresh clone has no weights and no index, so the container ships a configuration that
+still **answers differently for different input**: real query construction, real
+retrieval over the synthetic catalogue in `fixtures/`, a templated writer, and the real
+rule-based safety layer. Send two different profiles and you get two different sets of
+products, with citations that resolve and the pregnancy and medical-boundary rules
+firing. `/analyze-skin` is the one endpoint answering from a fixture — the classifier is
+43 MB of weights a fresh clone does not have.
+
+To serve the trained stack, put the adapter under `models/` and the FAISS index under
+`data/processed/` (both gitignored, hundreds of megabytes) and set
+`USE_MOCK_RETRIEVAL=0 USE_STUB_GENERATOR=0 USE_MOCK_VISION=0`.
 
 Try an endpoint:
 
